@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#000000">
+<title>Mi TV</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js"></script>
+<style>
+  :root{
+    --bg:#000; --panel:rgba(10,14,22,.94); --row:rgba(255,255,255,.04);
+    --txt:#f3f6fb; --dim:#8d99ad; --line:rgba(255,255,255,.08);
+    --acc:#5aa9ff; --acc-ink:#04121f; --live:#ff4d5e;
+    --and:#2fbf71; --loc:#2fb6a3; --ptv:#a78bfa; --s7:#ff8a5b;
+    --safe-x:4vw; --safe-y:4vh;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;cursor:none;background:var(--bg);color:var(--txt);overflow:hidden;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none}
+  /* Tamaños en vh: se ven igual en 720p y 1080p y desde el sofá */
+  html{font-size:2.3vh}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+
+  /* ---------- vídeo ---------- */
+  #video{position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+
+  /* ---------- estado central ---------- */
+  #status{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;
+    font-size:1.4rem;font-weight:600;display:none;text-shadow:0 2px 12px #000;max-width:60vw}
+  #status.on{display:block}
+  #status small{display:block;margin-top:.6rem;font-size:.9rem;color:var(--dim);font-weight:500}
+  .spin{width:3rem;height:3rem;border:.3rem solid rgba(255,255,255,.18);border-top-color:var(--acc);
+    border-radius:50%;margin:0 auto 1rem;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---------- carta de ajuste (mientras sintoniza) ---------- */
+  #card{position:fixed;inset:0;display:none;align-items:center;justify-content:center;overflow:hidden;
+    background:#5d6066;
+    background-image:
+      repeating-linear-gradient(0deg,rgba(255,255,255,.55) 0 2px,transparent 2px 8vh),
+      repeating-linear-gradient(90deg,rgba(255,255,255,.55) 0 2px,transparent 2px 8vh);
+    background-position:center center}
+  #card.on{display:flex}
+  #card::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.08) 0 1px,transparent 1px 3px);
+    animation:roll 7s linear infinite}
+  @keyframes roll{to{background-position:0 100vh}}
+  .tc-disc{position:relative;width:min(78vh,80vw);aspect-ratio:1;border-radius:50%;overflow:hidden;
+    box-shadow:0 0 0 .35vh #fff,0 0 0 1.2vh #1a1a1a;display:grid;grid-template-rows:15% 16% 23% 14% 16% 16%}
+  .tc-bars{display:grid;grid-template-columns:repeat(7,1fr)}
+  .tc-bars i:nth-child(1){background:#c0c0c0}.tc-bars i:nth-child(2){background:#c0c000}
+  .tc-bars i:nth-child(3){background:#00c0c0}.tc-bars i:nth-child(4){background:#00c000}
+  .tc-bars i:nth-child(5){background:#c000c0}.tc-bars i:nth-child(6){background:#c00000}
+  .tc-bars i:nth-child(7){background:#0000c0}
+  .tc-top{background:#111;display:flex;align-items:center;justify-content:center;gap:1.2vh}
+  .tc-top b{background:#fff;color:#111;font-weight:900;font-size:3.6vh;letter-spacing:.3em;padding:.3vh 1.2vh .3vh 1.6vh}
+  .tc-mid{background:#fff;color:#111;display:flex;align-items:center;justify-content:center;gap:2vh;padding:0 10%}
+  .tc-num{font-size:7vh;font-weight:900;font-variant-numeric:tabular-nums;line-height:1;color:#111;
+    border-right:.4vh solid #111;padding-right:2vh}
+  .tc-name{font-size:4.4vh;font-weight:800;line-height:1.05;text-transform:uppercase;letter-spacing:.02em;
+    overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .tc-grey{background:linear-gradient(90deg,#000 0 16.6%,#333 0 33.3%,#666 0 50%,#999 0 66.6%,#ccc 0 83.3%,#fff 0)}
+  .tc-freq{background:#111;
+    background-image:
+      repeating-linear-gradient(90deg,#fff 0 .9vh,#111 .9vh 1.8vh),
+      repeating-linear-gradient(90deg,#fff 0 .6vh,#111 .6vh 1.2vh),
+      repeating-linear-gradient(90deg,#fff 0 .4vh,#111 .4vh .8vh),
+      repeating-linear-gradient(90deg,#fff 0 .25vh,#111 .25vh .5vh),
+      repeating-linear-gradient(90deg,#fff 0 .15vh,#111 .15vh .3vh);
+    background-size:19% 100%;background-repeat:no-repeat;background-position:0 0,25% 0,50% 0,75% 0,100% 0}
+  .tc-bot{background:#111;color:#fff;display:flex;align-items:center;justify-content:center;gap:2vh;
+    font-weight:800;font-size:3.2vh;letter-spacing:.18em;font-variant-numeric:tabular-nums}
+  .tc-bot .blink{display:inline-flex;align-items:center;gap:1vh}
+  .tc-bot .blink::before{content:"";width:1.4vh;height:1.4vh;border-radius:50%;background:#ff3b3b;animation:pulse 1s steps(2) infinite}
+  #card.fail .tc-bot .blink::before{background:#ffb400;animation:none}
+  @media (prefers-reduced-motion:reduce){#card::after,.tc-bot .blink::before{animation:none}}
+
+  /* ---------- banner de información (al cambiar de canal) ---------- */
+  #banner{position:fixed;left:var(--safe-x);right:var(--safe-x);bottom:var(--safe-y);
+    display:flex;align-items:center;gap:1.4rem;padding:1.2rem 1.6rem;border-radius:1.2rem;
+    background:linear-gradient(90deg,rgba(8,12,20,.94),rgba(8,12,20,.82));
+    border:1px solid var(--line);box-shadow:0 1rem 3rem rgba(0,0,0,.5);
+    transition:opacity .35s,transform .35s}
+  #banner.hide{opacity:0;transform:translateY(1rem);pointer-events:none}
+  #banner .num{font-size:2.8rem;font-weight:800;color:var(--acc);min-width:3.2rem;text-align:center;
+    font-variant-numeric:tabular-nums;line-height:1}
+  #banner .logo{width:4.2rem;height:4.2rem;font-size:1.3rem}
+  #banner .info{flex:1;min-width:0}
+  #banner .sec{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:700;
+    display:flex;align-items:center;gap:.5rem}
+  #banner .sec::before{content:"";width:.6rem;height:.6rem;border-radius:50%;background:var(--c,var(--acc))}
+  #banner .name{font-size:1.9rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #banner .nav{display:flex;flex-direction:column;gap:.35rem;font-size:.85rem;color:var(--dim);text-align:right;white-space:nowrap}
+  #banner .nav b{color:var(--txt);font-weight:600}
+  #banner .clock{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--txt);margin-left:.6rem}
+
+  .live{display:inline-flex;align-items:center;gap:.35rem;font-size:.7rem;font-weight:800;letter-spacing:.08em;
+    color:#fff;background:var(--live);padding:.15rem .5rem;border-radius:.35rem;vertical-align:middle}
+  .live::before{content:"";width:.45rem;height:.45rem;border-radius:50%;background:#fff;animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.25}}
+
+  /* ---------- logos ---------- */
+  .logo{flex:none;border-radius:.7rem;background:#fff center/cover no-repeat;display:flex;align-items:center;
+    justify-content:center;font-weight:800;color:#0b0f17;overflow:hidden}
+
+  /* ---------- guía lateral ---------- */
+  #guide{position:fixed;top:0;bottom:0;left:0;width:max(34vw,24rem);display:flex;flex-direction:column;
+    background:linear-gradient(90deg,rgba(6,9,15,.97) 70%,rgba(6,9,15,.88));
+    border-right:1px solid var(--line);box-shadow:2rem 0 4rem rgba(0,0,0,.55);
+    transform:translateX(-102%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+  #guide.open{transform:none}
+  #guide header{padding:var(--safe-y) 1.6rem 1rem calc(var(--safe-x) * .9);display:flex;align-items:baseline;justify-content:space-between}
+  #guide h1{font-size:1.6rem;font-weight:800;letter-spacing:-.01em}
+  #guide h1 span{color:var(--acc)}
+  #gclock{font-size:1.2rem;font-weight:700;color:var(--dim);font-variant-numeric:tabular-nums}
+
+  #tabs{display:flex;gap:.5rem;padding:0 1.6rem .9rem calc(var(--safe-x) * .9);flex-wrap:wrap}
+  .tab{font-size:.8rem;font-weight:700;padding:.35rem .75rem;border-radius:2rem;color:var(--dim);
+    border:1px solid var(--line);white-space:nowrap}
+  .tab.cur{color:var(--acc-ink);background:var(--c);border-color:transparent}
+
+  #list{flex:1;overflow-y:auto;padding:0 1rem 40vh calc(var(--safe-x) * .9 - .6rem);scroll-behavior:smooth;scrollbar-width:none}
+  #list::-webkit-scrollbar{display:none}
+  .shead{font-size:.75rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);font-weight:800;
+    padding:1.1rem .6rem .5rem;display:flex;align-items:center;gap:.5rem}
+  .shead::before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:var(--c)}
+  .ch{display:flex;align-items:center;gap:.9rem;width:100%;text-align:left;padding:.55rem .6rem;margin:.15rem 0;
+    border-radius:.8rem;border:.15rem solid transparent;outline:none;transition:background .12s,border-color .12s,transform .12s}
+  .ch .n{width:2rem;text-align:right;font-weight:700;color:var(--dim);font-variant-numeric:tabular-nums;font-size:1rem}
+  .ch .logo{width:2.6rem;height:2.6rem;font-size:.85rem;border-radius:.55rem}
+  .ch .nm{flex:1;min-width:0;font-size:1.1rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ch .tag{font-size:.7rem;font-weight:800;color:var(--dim)}
+  .ch.playing .nm{color:var(--acc)}
+  .ch.dead{opacity:.45}
+  .ch.focus{background:var(--acc);border-color:var(--acc);transform:scale(1.02)}
+  .ch.focus .n,.ch.focus .nm,.ch.focus .tag{color:var(--acc-ink)}
+  .ch.focus .live{background:var(--acc-ink)}
+
+  #ghelp{padding:1rem 1.6rem var(--safe-y) calc(var(--safe-x) * .9);border-top:1px solid var(--line);
+    font-size:.8rem;color:var(--dim);display:grid;grid-template-columns:auto 1fr;gap:.35rem 1rem}
+  #ghelp b{color:var(--txt);font-weight:700}
+
+  /* ---------- marcador numérico ---------- */
+  #digits{position:fixed;top:var(--safe-y);right:var(--safe-x);font-size:3.4rem;font-weight:800;color:var(--acc);
+    background:rgba(8,12,20,.9);border:1px solid var(--line);padding:.4rem 1.2rem;border-radius:1rem;
+    font-variant-numeric:tabular-nums;display:none}
+  #digits.on{display:block}
+
+  /* ---------- aviso ---------- */
+  #toast{position:fixed;top:var(--safe-y);left:50%;transform:translateX(-50%);background:rgba(8,12,20,.94);
+    border:1px solid var(--line);padding:.8rem 1.4rem;border-radius:2rem;font-size:1rem;font-weight:600;
+    display:flex;align-items:center;gap:.7rem;transition:opacity .3s;box-shadow:0 .6rem 2rem rgba(0,0,0,.5)}
+  #toast.hide{opacity:0;pointer-events:none}
+  .key{display:inline-block;min-width:1.7rem;padding:.1rem .45rem;border-radius:.4rem;background:var(--acc);
+    color:var(--acc-ink);font-weight:800;text-align:center;font-size:.85em}
+
+</style>
+</head>
+<body>
+
+<video id="video" playsinline autoplay></video>
+
+<div id="card" aria-live="polite">
+  <div class="tc-disc">
+    <div class="tc-top"><b>MI TV</b></div>
+    <div class="tc-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="tc-mid"><span class="tc-num" id="tcNum"></span><span class="tc-name" id="tcName"></span></div>
+    <div class="tc-grey"></div>
+    <div class="tc-freq"></div>
+    <div class="tc-bot"><span class="blink" id="tcMsg">SINTONIZANDO</span><span id="tcClock"></span></div>
+  </div>
+</div>
+
+<div id="status"></div>
+
+<div id="banner" class="hide">
+  <div class="num" id="bNum"></div>
+  <div class="logo" id="bLogo"></div>
+  <div class="info">
+    <div class="sec" id="bSec"></div>
+    <div class="name" id="bName"></div>
+  </div>
+  <div class="nav">
+    <div><b>▲ ▼</b> cambiar canal</div>
+    <div><b>OK</b> lista de canales</div>
+  </div>
+  <div class="clock" id="bClock"></div>
+</div>
+
+<aside id="guide" aria-label="Canales">
+  <header><h1>Mi <span>TV</span></h1><div id="gclock"></div></header>
+  <nav id="tabs"></nav>
+  <div id="list" role="listbox"></div>
+  <div id="ghelp">
+    <b>▲ ▼</b><span>moverte por la lista</span>
+    <b>◀ ▶</b><span>saltar de grupo</span>
+    <b>OK</b><span>ver el canal</span>
+    <b>Atrás</b><span>cerrar la lista</span>
+  </div>
+</aside>
+
+<div id="digits"></div>
+<div id="toast" class="hide"></div>
+
+<script>
+/* =========================================================
+   CANALES — para añadir uno, copia una línea y cambia nombre y url.
+   ========================================================= */
+const FB  = u => `https://graph.facebook.com/${u}/picture?width=200&height=200`;
+const S7  = "https://streaming004.gestec-video.com/hls/";
+const SE7 = "https://especial7tv.gestec-video.com/hls/";
+
+const SECTIONS = [
+  { title:"Andalucía", short:"Andalucía", color:"var(--and)", channels:[
+    { name:"Canal Sur", url:"https://dfk2a268yviz9.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-ddiii1m6jt6of/CanalSurAndaluciaES.m3u8", backup:"https://live-24-canalsur.interactvty.pro/9bb0f4edcb8946e79f5017ddca6c02b0/74cdbd1b401a7598ab8f3e9b5652c9909daa60dd4f6f96f28396a3f1cfd926f2.m3u8", logo:FB("canalsurradioytv") },
+  ]},
+  { title:"Locales de Cádiz", short:"Cádiz", color:"var(--loc)", channels:[
+    { name:"Onda Cádiz",          url:"https://ondacadiztv.es:30443/octv/directo_multi/playlist.m3u8", backup:"https://ondacadiztv.es:30443/octv/24h/playlist.m3u8", logo:FB("ondacadiz") },
+    { name:"8TV Sierra de Cádiz", url:"https://s.emisoras.tv:8081/sierradecadiz/index.m3u8", logo:FB("8tvcadiz") },
+    { name:"8TV Chiclana",        url:"https://s.emisoras.tv:8081/chiclana/index.m3u8",      logo:FB("8tvcadiz") },
+    { name:"8TV La Janda",        url:"https://s.emisoras.tv:8081/lajanda/index.m3u8",       logo:FB("8tvcadiz") },
+    { name:"Tuya La Janda",       url:"https://nimble.tuyapro.es/app/tv/playlist.m3u8",      logo:FB("tuyalajandatv") },
+  ]},
+  { title:"PTV", short:"PTV", color:"var(--ptv)", channels:[
+    { name:"PTV Sevilla", url:"https://streamer.zapitv.com/PTV_sevilla/index.m3u8", logo:FB("SevillaPTV") },
+    { name:"PTV Málaga",  url:"https://streamer.zapitv.com/PTV-malaga/index.m3u8",  logo:FB("PTVMalaga") },
+    { name:"PTV Córdoba", url:"https://streamer.zapitv.com/PTV_CORDOBA/index.m3u8", logo:FB("PTVCOR") },
+    { name:"PTV Granada", url:"https://streamer.zapitv.com/PTV-granada/index.m3u8", logo:FB("PTVGranada") },
+    { name:"PTV Linares", url:"https://streamer.zapitv.com/ptv-linarez/index.m3u8", logo:FB("tvlinares") },
+  ]},
+  { title:"7TV Andalucía", short:"7TV", color:"var(--s7)", channels:[
+    { name:"7TV Andalucía",          url:SE7+"regional.m3u8" },
+    { name:"7TV Cádiz",              url:S7+"7TVCADIZ.m3u8" },
+    { name:"7TV Jerez",              url:S7+"7TVJEREZ.m3u8" },
+    { name:"7TV San Fernando",       url:S7+"7TVSANFERNANDO.m3u8" },
+    { name:"7TV Rota",               url:S7+"7TVROTA.m3u8" },
+    { name:"7TV Arcos",              url:S7+"7TVARCOS.m3u8" },
+    { name:"7TV Campo de Gibraltar", url:S7+"7TVALGECIRAS.m3u8" },
+    { name:"7TV Sevilla",            url:SE7+"7TVSEVILLA.m3u8" },
+    { name:"7TV Aljarafe",           url:S7+"7TVALJARAFE.m3u8" },
+    { name:"7TV Málaga",             url:S7+"7TVMALAGA.m3u8" },
+    { name:"7TV Córdoba",            url:S7+"7TVCORDOBA.m3u8" },
+    { name:"7TV Huelva",             url:S7+"regional.m3u8" },
+    { name:"7TV Jaén",               url:S7+"7TVJAEN.m3u8" },
+    { name:"7TV Linares",            url:S7+"7TVLINARES.m3u8" },
+    { name:"7TV Granada",            url:S7+"7TVGRANADA.m3u8",  backup:SE7+"7TVGRANADA.m3u8" },
+    { name:"7TV Almería",            url:SE7+"7TVALMERIA.m3u8", backup:S7+"7TVALMERIA.m3u8" },
+  ].map(c => ({...c, logo:FB("7TelevisionAndalucia")})) },
+];
+
+/* ---------- datos ---------- */
+const CH = [];                       // lista plana numerada
+SECTIONS.forEach((s, si) => s.channels.forEach(c => { c.sec = si; c.num = CH.length + 1; CH.push(c); }));
+
+const $ = id => document.getElementById(id);
+const video = $("video"), statusEl = $("status"), banner = $("banner"), guide = $("guide"),
+      list = $("list"), tabs = $("tabs"), digitsEl = $("digits"), toastEl = $("toast");
+
+const store = {
+  get(k){ try{ return localStorage.getItem(k) }catch(e){ return null } },
+  set(k,v){ try{ localStorage.setItem(k,v) }catch(e){} }
+};
+
+/* ---------- logos (con iniciales si no cargan) ---------- */
+const initials = n => n.replace(/^(7TV|8TV|PTV)\s+/,"").split(/\s+/).filter(w=>/\w/.test(w)).map(w=>w[0]).join("").slice(0,2).toUpperCase();
+function paintLogo(el, ch){
+  el.style.backgroundImage = ""; el.textContent = initials(ch.name);
+  if(!ch.logo) return;
+  if(ch._logoOk){ el.style.backgroundImage = `url("${ch.logo}")`; el.textContent = ""; return; }
+  const img = new Image();
+  img.onload = () => { ch._logoOk = true; el.style.backgroundImage = `url("${ch.logo}")`; el.textContent = ""; };
+  img.src = ch.logo;
+}
+
+/* ---------- construir la guía ---------- */
+const rows = [];
+SECTIONS.forEach((s, si) => {
+  const t = document.createElement("button");
+  t.className = "tab"; t.textContent = s.short; t.style.setProperty("--c", s.color); t.tabIndex = -1;
+  t.addEventListener("click", () => { setFocus(CH.findIndex(c => c.sec === si)); });
+  tabs.appendChild(t);
+
+  const h = document.createElement("div");
+  h.className = "shead"; h.textContent = s.title; h.style.setProperty("--c", s.color);
+  list.appendChild(h);
+
+  s.channels.forEach(ch => {
+    const r = document.createElement("button");
+    r.className = "ch"; r.tabIndex = -1; r.setAttribute("role","option");
+    r.innerHTML = `<span class="n">${ch.num}</span><span class="logo"></span><span class="nm"></span><span class="tag"></span>`;
+    r.querySelector(".nm").textContent = ch.name;
+    paintLogo(r.querySelector(".logo"), ch);
+    r.addEventListener("mouseenter", () => setFocus(ch.num - 1, false));
+    r.addEventListener("click", () => { tune(ch.num - 1); closeGuide(); });
+    list.appendChild(r); rows.push(r);
+  });
+});
+
+/* ---------- estado ---------- */
+let cur = -1;          // canal en emisión
+let focus = 0;         // canal resaltado en la guía
+let hls = null, usingBackup = false, stallTimer = null;
+const dead = new Set();
+
+function setFocus(i, scroll = true){
+  focus = (i + CH.length) % CH.length;
+  rows.forEach((r, k) => r.classList.toggle("focus", k === focus));
+  [...tabs.children].forEach((t, k) => t.classList.toggle("cur", k === CH[focus].sec));
+  if(scroll){
+    const r = rows[focus];
+    list.scrollTop = r.offsetTop - list.clientHeight / 2 + r.offsetHeight / 2;
+  }
+  armGuideTimer();
+}
+function refreshRows(){
+  rows.forEach((r, k) => {
+    r.classList.toggle("playing", k === cur);
+    r.classList.toggle("dead", dead.has(k));
+    r.querySelector(".tag").innerHTML = k === cur ? '<span class="live">EN VIVO</span>' : dead.has(k) ? "SIN SEÑAL" : "";
+  });
+}
+
+/* ---------- guía: abrir / cerrar ---------- */
+let guideTimer = null;
+const guideOpen = () => guide.classList.contains("open");
+function openGuide(){
+  guide.classList.add("open"); hideBanner();
+  setFocus(cur >= 0 ? cur : 0);
+}
+function closeGuide(){ guide.classList.remove("open"); clearTimeout(guideTimer); }
+function armGuideTimer(){
+  clearTimeout(guideTimer);
+  if(cur >= 0) guideTimer = setTimeout(closeGuide, 12000);   // se cierra sola si no tocas nada
+}
+
+/* ---------- banner ---------- */
+let bannerTimer = null;
+function showBanner(){
+  if(cur < 0 || guideOpen()) return;
+  const ch = CH[cur], s = SECTIONS[ch.sec];
+  $("bNum").textContent = ch.num;
+  $("bName").textContent = ch.name;
+  $("bSec").innerHTML = ""; $("bSec").append(s.title + " ");
+  const lv = document.createElement("span"); lv.className = "live"; lv.textContent = "EN VIVO"; $("bSec").append(lv);
+  $("bSec").style.setProperty("--c", s.color);
+  paintLogo($("bLogo"), ch);
+  banner.classList.remove("hide");
+  clearTimeout(bannerTimer); bannerTimer = setTimeout(hideBanner, 4500);
+}
+function hideBanner(){ banner.classList.add("hide"); }
+
+/* ---------- aviso ---------- */
+let toastTimer = null;
+function toast(html, ms = 5000){
+  toastEl.innerHTML = html; toastEl.classList.remove("hide");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.add("hide"), ms);
+}
+
+/* ---------- reproducción ---------- */
+const card = $("card");
+function showCard(fail = false){
+  const ch = CH[cur];
+  $("tcNum").textContent = ch.num;
+  $("tcName").textContent = ch.name;
+  $("tcMsg").textContent = fail ? "SIN SEÑAL" : "SINTONIZANDO";
+  card.classList.toggle("fail", fail);
+  card.classList.add("on"); hideStatus(); hideBanner(); tickCard();
+}
+function hideCard(){ card.classList.remove("on"); }
+function tickCard(){ $("tcClock").textContent = new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
+setInterval(() => { if(card.classList.contains("on")) tickCard(); }, 1000);
+function showStatus(html){ statusEl.innerHTML = html; statusEl.classList.add("on"); }
+function hideStatus(){ statusEl.classList.remove("on"); }
+
+function tune(i, backup = false){
+  i = (i + CH.length) % CH.length;
+  const ch = CH[i];
+  cur = i; usingBackup = backup;
+  store.set("tv:last", ch.name);
+  refreshRows(); showBanner();
+  showCard();
+
+  const src = backup ? ch.backup : ch.url;
+  if(hls){ hls.destroy(); hls = null; }
+  clearTimeout(stallTimer);
+  stallTimer = setTimeout(() => { if(video.readyState < 3) fail(); }, 15000);
+
+  if(window.Hls && Hls.isSupported()){
+    hls = new Hls({ liveSyncDurationCount:3, manifestLoadingMaxRetry:2, levelLoadingMaxRetry:2 });
+    hls.on(Hls.Events.ERROR, (e, d) => {
+      if(!d.fatal) return;
+      if(d.type === Hls.ErrorTypes.MEDIA_ERROR){ hls.recoverMediaError(); return; }
+      fail();
+    });
+    hls.loadSource(src); hls.attachMedia(video);
+  } else {
+    video.src = src;
+  }
+  startPlayback();
+}
+video.addEventListener("error", () => { if(!hls && cur >= 0) fail(); });
+
+/* El navegador puede bloquear el sonido hasta que pulses algo: se arranca en silencio y se avisa. */
+function startPlayback(){
+  video.muted = false;
+  const p = video.play();
+  if(p && p.catch) p.catch(() => {
+    video.muted = true;
+    video.play().catch(()=>{});
+    toast('<span class="key">OK</span> Pulsa OK para activar el sonido', 8000);
+  });
+}
+function unmute(){
+  if(video.muted){ video.muted = false; video.play().catch(()=>{}); toastEl.classList.add("hide"); return true; }
+  return false;
+}
+
+function fail(){
+  clearTimeout(stallTimer);
+  const ch = CH[cur];
+  if(ch && ch.backup && !usingBackup){ tune(cur, true); return; }
+  dead.add(cur); refreshRows();
+  showCard(true);
+}
+video.addEventListener("playing", () => { hideStatus(); if(card.classList.contains("on")){ hideCard(); showBanner(); } clearTimeout(stallTimer); if(dead.delete(cur)) refreshRows(); });
+video.addEventListener("waiting", () => { if(cur >= 0 && !card.classList.contains("on")) showStatus('<div class="spin"></div>Cargando…'); });
+
+/* ---------- marcar número de canal ---------- */
+let digits = "", digitsTimer = null;
+function typeDigit(d){
+  digits = (digits + d).slice(-2);
+  digitsEl.textContent = digits; digitsEl.classList.add("on");
+  clearTimeout(digitsTimer);
+  const go = () => {
+    digitsEl.classList.remove("on");
+    const n = parseInt(digits, 10); digits = "";
+    if(n >= 1 && n <= CH.length){ closeGuide(); tune(n - 1); }
+    else toast(`No hay canal ${n}`, 2500);
+  };
+  if(digits.length === 2 || parseInt(digits + "0", 10) > CH.length) digitsTimer = setTimeout(go, 400);
+  else digitsTimer = setTimeout(go, 1500);
+}
+
+/* ---------- botón Atrás del mando ----------
+   Se deja siempre una entrada extra en el historial para que «Atrás»
+   cierre la lista (o la abra) en lugar de salir de la página. */
+history.replaceState({tv:"base"}, "");
+history.pushState({tv:"trap"}, "");
+window.addEventListener("popstate", () => {
+  history.pushState({tv:"trap"}, "");
+  back();
+});
+function back(){
+  if(digits){ digits = ""; digitsEl.classList.remove("on"); return; }
+  if(guideOpen()) closeGuide(); else openGuide();
+}
+
+/* ---------- mando y teclado ---------- */
+const KEYS = {
+  ArrowUp:"up", ArrowDown:"down", ArrowLeft:"left", ArrowRight:"right",
+  Enter:"ok", NumpadEnter:"ok", " ":"ok", Select:"ok",
+  Escape:"back", Backspace:"back", GoBack:"back", BrowserBack:"back",
+  ChannelUp:"chup", ChannelDown:"chdown", PageUp:"chup", PageDown:"chdown",
+  ContextMenu:"menu", Info:"info", MediaPlayPause:"ok"
+};
+document.addEventListener("keydown", e => {
+  let a = KEYS[e.key];
+  if(!a){
+    if(e.keyCode === 4 || e.keyCode === 10009 || e.keyCode === 461) a = "back";
+    else if(e.keyCode === 427 || e.keyCode === 166) a = "chup";
+    else if(e.keyCode === 428 || e.keyCode === 167) a = "chdown";
+  }
+  if(/^[0-9]$/.test(e.key)){ e.preventDefault(); typeDigit(e.key); return; }
+  if(!a) return;
+  e.preventDefault();
+  if(a === "back"){ if(e.key !== "BrowserBack") back(); return; }
+
+  const soundWasOff = video.muted;
+  if(a === "ok" && unmute() && !guideOpen()) return;   // primer OK: solo activa el sonido
+
+  if(guideOpen()){
+    if(a === "up")        setFocus(focus - 1);
+    else if(a === "down") setFocus(focus + 1);
+    else if(a === "chup") setFocus(focus - 5);
+    else if(a === "chdown") setFocus(focus + 5);
+    else if(a === "left" || a === "right"){
+      const s = CH[focus].sec, n = SECTIONS.length;
+      const target = a === "right" ? (s + 1) % n : (CH.findIndex(c => c.sec === s) === focus ? (s - 1 + n) % n : s);
+      setFocus(CH.findIndex(c => c.sec === target));
+    }
+    else if(a === "ok"){ if(focus !== cur || dead.has(focus)) tune(focus); closeGuide(); }
+    else if(a === "menu") closeGuide();
+  } else {
+    if(a === "up" || a === "chup")         tune(cur - 1);
+    else if(a === "down" || a === "chdown") tune(cur + 1);
+    else if(a === "ok" || a === "left" || a === "menu") openGuide();
+    else if(a === "right" || a === "info")  showBanner();
+  }
+}, true);
+
+/* ---------- ratón: sin botones en pantalla, todo va con el mando ---------- */
+video.addEventListener("click", () => { if(unmute()) return; guideOpen() ? closeGuide() : openGuide(); });
+list.addEventListener("wheel", armGuideTimer, {passive:true});
+list.addEventListener("scroll", armGuideTimer, {passive:true});
+
+/* ---------- reloj ---------- */
+function tick(){
+  const t = new Date().toLocaleTimeString("es-ES", {hour:"2-digit", minute:"2-digit"});
+  $("gclock").textContent = t; $("bClock").textContent = t;
+}
+tick(); setInterval(tick, 15000);
+
+/* ---------- arranque: directamente al último canal visto ---------- */
+const last = CH.findIndex(c => c.name === store.get("tv:last"));
+tune(last >= 0 ? last : 0);
+if(last < 0) openGuide();
+</script>
+</body>
+</html>
