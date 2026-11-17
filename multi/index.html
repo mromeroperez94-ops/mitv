@@ -19,7 +19,7 @@
   html{font-size:1.9vh}
   button,input{font:inherit;color:inherit}
 
-  /* ---------- rejilla: 4×4, PGM ocupa 2×2 ---------- */
+  /* ---------- rejilla: 4×4, PGM ocupa 3×3 ---------- */
   #wall{position:fixed;inset:0;padding:var(--gap);display:grid;gap:var(--gap);
     grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr))}
 
@@ -67,7 +67,7 @@
   @keyframes blink{50%{opacity:0}}
 
   /* ---------- panel de reloj ---------- */
-  #panel{grid-column:2/5;grid-row:4;display:flex;align-items:center;gap:2.4vh;padding:0 2.4vh;
+  #panel{grid-column:2/4;grid-row:4;display:flex;align-items:center;gap:2.4vh;padding:0 2.4vh;
     background:#000;border:.25vh solid var(--bez);border-radius:.4vh;min-width:0;overflow:hidden}
   #clock{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;
     font-size:7.2vh;font-weight:700;color:#ff3b30;letter-spacing:.04em;line-height:1}
@@ -130,24 +130,19 @@
 <script>
 /* =========================================================
    SEÑALES — url principal y, si hay, backup.
-   Las de Atresmedia y Mediaset pueden necesitar un enlace nuevo
-   el mismo día: se pega desde ⚙ sin tocar este archivo.
+   Si una deja de ir, se pega un enlace nuevo desde ⚙ sin tocar este archivo.
    ========================================================= */
 const CHANNELS = [
   { id:"la1",   name:"La 1",              url:"https://rtvelivestream.rtve.es/rtvesec/la1/la1_main_dvr.m3u8", backup:"https://ztnr.rtve.es/ztnr/1688877.m3u8" },
   { id:"24h",   name:"24h",               url:"https://ztnr.rtve.es/ztnr/1694255.m3u8", backup:"https://rtvelivestream.rtve.es/rtvesec/24h/24h_main_dvr.m3u8" },
-  { id:"a3",    name:"Antena 3",          url:"https://livestartover.atresmedia.com/antena3/master.m3u8", backup:"https://livestartover.atresmedia.com/geoantena3/master.m3u8" },
-  { id:"cuatro",name:"Cuatro",            url:"" },
-  { id:"t5",    name:"Telecinco",         url:"" },
-  { id:"sexta", name:"laSexta",           url:"https://livestartover.atresmedia.com/lasexta/master.m3u8", backup:"https://livestartover.atresmedia.com/geolasexta/master.m3u8" },
   { id:"sep",   name:"La Séptima",        url:"https://www.youtube.com/channel/UCOCGPFW1UqPP9zdol7vEK1A/live" },
   { id:"cex",   name:"Canal Extremadura", url:"https://d2ymuyhevki1a1.cloudfront.net/wct-ddd2992e-86fc-4611-a491-7f392259e9ba/continuous/9be76611-d2cd-474d-bf19-ef702ba31b02/index.m3u8" },
   { id:"csur",  name:"Canal Sur",         url:"https://dfk2a268yviz9.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-ddiii1m6jt6of/CanalSurAndaluciaES.m3u8", backup:"https://live-24-canalsur.interactvty.pro/9bb0f4edcb8946e79f5017ddca6c02b0/74cdbd1b401a7598ab8f3e9b5652c9909daa60dd4f6f96f28396a3f1cfd926f2.m3u8" },
   { id:"tm",    name:"Telemadrid",        url:"https://live.telemadrid.cross-media.es/6389770581112/eu-central-1/6416060453001/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJob3N0IjoiajI5YjgyLmVncmVzcy5haGc3NmwiLCJhY2NvdW50X2lkIjoiNjQxNjA2MDQ1MzAwMSIsImVobiI6ImxpdmUudGVsZW1hZHJpZC5jcm9zcy1tZWRpYS5lcyIsImlzcyI6ImJsaXZlLXBsYXliYWNrLXNvdXJjZS1hcGkiLCJzdWIiOiJwYXRobWFwdG9rZW4iLCJhdWQiOlsiNjQxNjA2MDQ1MzAwMSJdLCJqdGkiOiI2Mzg5NzcwNTgxMTEyIn0.kqriAMUkHT6m0V6wkCHJum_EUyL4PAi1zJMKlfmYHEU/playlist-hls.m3u8" },
 ];
 
-/* Huecos de la rejilla 4×4: [columna, fila, ancho, alto]. El 0 es el PGM. */
-const SLOTS = [[1,1,2,2],[3,1,1,1],[4,1,1,1],[3,2,1,1],[4,2,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1],[1,4,1,1]];
+/* Huecos de la rejilla 4×4: [columna, fila, ancho, alto]. El 0 es el PGM (3×3). */
+const SLOTS = [[1,1,3,3],[4,1,1,1],[4,2,1,1],[4,3,1,1],[4,4,1,1],[1,4,1,1]];
 
 const $ = id => document.getElementById(id);
 const store = {
