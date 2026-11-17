@@ -134,13 +134,13 @@
    el mismo día: se pega desde ⚙ sin tocar este archivo.
    ========================================================= */
 const CHANNELS = [
-  { id:"la1",   name:"La 1",              url:"https://ztnr.rtve.es/ztnr/1688877.m3u8" },
-  { id:"24h",   name:"24h",               url:"https://ztnr.rtve.es/ztnr/1694255.m3u8" },
+  { id:"la1",   name:"La 1",              url:"https://rtvelivestream.rtve.es/rtvesec/la1/la1_main_dvr.m3u8", backup:"https://ztnr.rtve.es/ztnr/1688877.m3u8" },
+  { id:"24h",   name:"24h",               url:"https://ztnr.rtve.es/ztnr/1694255.m3u8", backup:"https://rtvelivestream.rtve.es/rtvesec/24h/24h_main_dvr.m3u8" },
   { id:"a3",    name:"Antena 3",          url:"https://livestartover.atresmedia.com/antena3/master.m3u8", backup:"https://livestartover.atresmedia.com/geoantena3/master.m3u8" },
   { id:"cuatro",name:"Cuatro",            url:"" },
   { id:"t5",    name:"Telecinco",         url:"" },
   { id:"sexta", name:"laSexta",           url:"https://livestartover.atresmedia.com/lasexta/master.m3u8", backup:"https://livestartover.atresmedia.com/geolasexta/master.m3u8" },
-  { id:"sep",   name:"La Séptima",        url:"" },
+  { id:"sep",   name:"La Séptima",        url:"https://www.youtube.com/channel/UCOCGPFW1UqPP9zdol7vEK1A/live" },
   { id:"cex",   name:"Canal Extremadura", url:"https://d2ymuyhevki1a1.cloudfront.net/wct-ddd2992e-86fc-4611-a491-7f392259e9ba/continuous/9be76611-d2cd-474d-bf19-ef702ba31b02/index.m3u8" },
   { id:"csur",  name:"Canal Sur",         url:"https://dfk2a268yviz9.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-ddiii1m6jt6of/CanalSurAndaluciaES.m3u8", backup:"https://live-24-canalsur.interactvty.pro/9bb0f4edcb8946e79f5017ddca6c02b0/74cdbd1b401a7598ab8f3e9b5652c9909daa60dd4f6f96f28396a3f1cfd926f2.m3u8" },
   { id:"tm",    name:"Telemadrid",        url:"https://telemadrid-23-secure2.akamaized.net/master.m3u8" },
@@ -167,9 +167,12 @@ const ICON_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 const ICON_GEAR= '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 
 /* ---------- YouTube ---------- */
-function ytId(u){
-  const m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|live\/|shorts\/))([\w-]{11})/);
-  return m ? m[1] : null;
+/* Devuelve la ruta de embed: un vídeo concreto o el directo de un canal. */
+function ytEmbed(u){
+  let m = u.match(/youtube\.com\/(?:channel\/(UC[\w-]{22})(?:\/live)?|embed\/live_stream\?(?:.*&)?channel=(UC[\w-]{22}))/);
+  if(m) return "live_stream?channel=" + (m[1] || m[2]) + "&";
+  m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|live\/|shorts\/))([\w-]{11})/);
+  return m ? m[1] + "?" : null;
 }
 function ytCmd(frame, func, args = []){
   try{ frame.contentWindow.postMessage(JSON.stringify({event:"command", func, args}), "*"); }catch(e){}
@@ -227,11 +230,11 @@ function start(t){
   const src = urlOf(t);
   if(!src){ setState(t, "empty", "SIN ENLACE", "Pulsa ⚙ y pega el enlace de la señal"); return; }
 
-  const id = ytId(src);
+  const id = ytEmbed(src);
   if(id){
     const f = document.createElement("iframe");
     f.allow = "autoplay; encrypted-media";
-    f.src = `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&controls=0&playsinline=1&enablejsapi=1&rel=0&modestbranding=1&iv_load_policy=3`;
+    f.src = `https://www.youtube.com/embed/${id}autoplay=1&mute=1&controls=0&playsinline=1&enablejsapi=1&rel=0&modestbranding=1&iv_load_policy=3`;
     f.addEventListener("load", () => { setTimeout(() => applyAudio(t), 800); });
     t.pic.prepend(f); t.media = f; t.yt = true;
     setState(t, null);
