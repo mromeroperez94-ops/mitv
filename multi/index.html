@@ -67,17 +67,29 @@
   @keyframes blink{50%{opacity:0}}
 
   /* ---------- panel de reloj ---------- */
-  #panel{grid-column:2/4;grid-row:4;display:flex;align-items:center;gap:2.4vh;padding:0 2.4vh;
-    background:#000;border:.25vh solid var(--bez);border-radius:.4vh;min-width:0;overflow:hidden}
+  #panel{display:flex;align-items:center;gap:2.4vh;padding:1.2vh 2.4vh;
+    background:#000;border:.25vh solid var(--bez);border-radius:.4vh;min-width:0;min-height:0;overflow:hidden}
   #clock{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;
     font-size:7.2vh;font-weight:700;color:#ff3b30;letter-spacing:.04em;line-height:1}
   #pinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:.7vh}
   #date{font-size:1.5vh;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
   #onair{font-size:2.3vh;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #onair span{color:var(--aud)}
+  #modes{display:flex;flex-wrap:wrap;gap:.6vh}
+  #modes button{border:.15vh solid #2a2f38;background:none;border-radius:2vh;padding:.4vh 1.2vh;font-size:1.35vh;font-weight:800;
+    letter-spacing:.04em;color:var(--dim);cursor:pointer;white-space:nowrap}
+  #modes button.on{background:var(--foc);border-color:var(--foc);color:#04121f}
   #keys{font-size:1.2vh;color:var(--dim);line-height:1.6}
   #keys b{color:var(--txt)}
   #fs{flex:none;border:1px solid #2a2f38;background:none;border-radius:.5vh;padding:.8vh 1.2vh;font-size:1.3vh;color:var(--dim);cursor:pointer}
+  /* panel estrecho (una columna): todo apilado y centrado */
+  #panel.tall{flex-direction:column;justify-content:center;text-align:center;gap:1.4vh}
+  #panel.tall #pinfo{flex:none;align-items:center;width:100%}
+  #panel.tall #modes{justify-content:center}
+  #panel.tall #keys{display:none}
+  /* panel bajo y estrecho: sin ayuda ni botón, reloj algo menor */
+  #panel.compact #keys,#panel.compact #fs{display:none}
+  #panel.compact #clock{font-size:6vh}
 
   /* ---------- aviso ---------- */
   #toast{position:fixed;top:2vh;left:50%;transform:translateX(-50%);background:rgba(8,10,14,.95);border:1px solid #2a2f38;
@@ -106,7 +118,8 @@
     <div id="pinfo">
       <div id="date"></div>
       <div id="onair">Audio: <span>—</span></div>
-      <div id="keys"><b>Toca una señal</b> o <b>OK</b>: pasa a PGM con sonido · <b>altavoz</b>: solo sonido · <b>⚙ / Menú</b>: cambiar enlace</div>
+      <div id="modes"></div>
+      <div id="keys"><b>Toca una señal</b> o <b>OK</b>: a PGM con sonido · <b>altavoz</b>: solo sonido · <b>CH +/−</b>: cambiar grupo · <b>⚙ / Menú</b>: enlace</div>
     </div>
     <button id="fs" type="button">Pantalla completa</button>
   </div>
@@ -129,20 +142,64 @@
 
 <script>
 /* =========================================================
-   SEÑALES — url principal y, si hay, backup.
+   GRUPOS Y SEÑALES — url principal y, si hay, backup.
    Si una deja de ir, se pega un enlace nuevo desde ⚙ sin tocar este archivo.
+   Huecos: [columna, fila, ancho, alto]; el primero es el PGM. clock: hueco del reloj.
    ========================================================= */
-const CHANNELS = [
-  { id:"la1",   name:"La 1",              url:"https://rtvelivestream.rtve.es/rtvesec/la1/la1_main_dvr.m3u8", backup:"https://ztnr.rtve.es/ztnr/1688877.m3u8" },
-  { id:"24h",   name:"24h",               url:"https://ztnr.rtve.es/ztnr/1694255.m3u8", backup:"https://rtvelivestream.rtve.es/rtvesec/24h/24h_main_dvr.m3u8" },
-  { id:"sep",   name:"La Séptima",        url:"https://www.youtube.com/channel/UCOCGPFW1UqPP9zdol7vEK1A/live" },
-  { id:"cex",   name:"Canal Extremadura", url:"https://d2ymuyhevki1a1.cloudfront.net/wct-ddd2992e-86fc-4611-a491-7f392259e9ba/continuous/9be76611-d2cd-474d-bf19-ef702ba31b02/index.m3u8" },
-  { id:"csur",  name:"Canal Sur",         url:"https://dfk2a268yviz9.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-ddiii1m6jt6of/CanalSurAndaluciaES.m3u8", backup:"https://live-24-canalsur.interactvty.pro/9bb0f4edcb8946e79f5017ddca6c02b0/74cdbd1b401a7598ab8f3e9b5652c9909daa60dd4f6f96f28396a3f1cfd926f2.m3u8" },
-  { id:"tm",    name:"Telemadrid",        url:"https://live.telemadrid.cross-media.es/6389770581112/eu-central-1/6416060453001/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJob3N0IjoiajI5YjgyLmVncmVzcy5haGc3NmwiLCJhY2NvdW50X2lkIjoiNjQxNjA2MDQ1MzAwMSIsImVobiI6ImxpdmUudGVsZW1hZHJpZC5jcm9zcy1tZWRpYS5lcyIsImlzcyI6ImJsaXZlLXBsYXliYWNrLXNvdXJjZS1hcGkiLCJzdWIiOiJwYXRobWFwdG9rZW4iLCJhdWQiOlsiNjQxNjA2MDQ1MzAwMSJdLCJqdGkiOiI2Mzg5NzcwNTgxMTEyIn0.kqriAMUkHT6m0V6wkCHJum_EUyL4PAi1zJMKlfmYHEU/playlist-hls.m3u8" },
-];
+const S7  = "https://streaming004.gestec-video.com/hls/";
+const SE7 = "https://especial7tv.gestec-video.com/hls/";
+const T101 = "https://liveingesta318.cdnmedia.tv/";
 
-/* Huecos de la rejilla 4×4: [columna, fila, ancho, alto]. El 0 es el PGM (3×3). */
-const SLOTS = [[1,1,3,3],[4,1,1,1],[4,2,1,1],[4,3,1,1],[4,4,1,1],[1,4,1,1]];
+const GROUPS = [
+  { id:"elecciones", name:"Elecciones", cols:4, rows:4,
+    slots:[[1,1,3,3],[4,1,1,1],[4,2,1,1],[4,3,1,1],[4,4,1,1],[1,4,1,1]], clock:[2,4,2,1],
+    channels:[
+      { id:"la1",  name:"La 1",              url:"https://rtvelivestream.rtve.es/rtvesec/la1/la1_main_dvr.m3u8", backup:"https://ztnr.rtve.es/ztnr/1688877.m3u8" },
+      { id:"24h",  name:"24h",               url:"https://ztnr.rtve.es/ztnr/1694255.m3u8", backup:"https://rtvelivestream.rtve.es/rtvesec/24h/24h_main_dvr.m3u8" },
+      { id:"sep",  name:"La Séptima",        url:"https://www.youtube.com/channel/UCOCGPFW1UqPP9zdol7vEK1A/live" },
+      { id:"cex",  name:"Canal Extremadura", url:"https://d2ymuyhevki1a1.cloudfront.net/wct-ddd2992e-86fc-4611-a491-7f392259e9ba/continuous/9be76611-d2cd-474d-bf19-ef702ba31b02/index.m3u8" },
+      { id:"csur", name:"Canal Sur",         url:"https://dfk2a268yviz9.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-ddiii1m6jt6of/CanalSurAndaluciaES.m3u8", backup:"https://live-24-canalsur.interactvty.pro/9bb0f4edcb8946e79f5017ddca6c02b0/74cdbd1b401a7598ab8f3e9b5652c9909daa60dd4f6f96f28396a3f1cfd926f2.m3u8" },
+      { id:"tm",   name:"Telemadrid",        url:"https://live.telemadrid.cross-media.es/6389770581112/eu-central-1/6416060453001/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJob3N0IjoiajI5YjgyLmVncmVzcy5haGc3NmwiLCJhY2NvdW50X2lkIjoiNjQxNjA2MDQ1MzAwMSIsImVobiI6ImxpdmUudGVsZW1hZHJpZC5jcm9zcy1tZWRpYS5lcyIsImlzcyI6ImJsaXZlLXBsYXliYWNrLXNvdXJjZS1hcGkiLCJzdWIiOiJwYXRobWFwdG9rZW4iLCJhdWQiOlsiNjQxNjA2MDQ1MzAwMSJdLCJqdGkiOiI2Mzg5NzcwNTgxMTEyIn0.kqriAMUkHT6m0V6wkCHJum_EUyL4PAi1zJMKlfmYHEU/playlist-hls.m3u8" },
+    ]},
+  { id:"7tv", name:"7TV", cols:5, rows:4,
+    slots:[[1,1,2,2],[3,1,1,1],[4,1,1,1],[5,1,1,1],[3,2,1,1],[4,2,1,1],[5,2,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1],[5,3,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1]], clock:[4,4,2,1],
+    channels:[
+      { id:"7and", name:"7TV Andalucía",          url:SE7+"regional.m3u8" },
+      { id:"7alm", name:"7TV Almería",            url:S7+"7TVALMERIA.m3u8", backup:SE7+"7TVALMERIA.m3u8" },
+      { id:"7cad", name:"7TV Cádiz",              url:S7+"7TVCADIZ.m3u8" },
+      { id:"7cor", name:"7TV Córdoba",            url:S7+"7TVCORDOBA.m3u8" },
+      { id:"7gra", name:"7TV Granada",            url:S7+"7TVGRANADA.m3u8", backup:SE7+"7TVGRANADA.m3u8" },
+      { id:"7jae", name:"7TV Jaén",               url:S7+"7TVJAEN.m3u8" },
+      { id:"7mal", name:"7TV Málaga",             url:S7+"7TVMALAGA.m3u8" },
+      { id:"7sev", name:"7TV Sevilla",            url:SE7+"7TVSEVILLA.m3u8" },
+      { id:"7alj", name:"7TV Aljarafe",           url:S7+"7TVALJARAFE.m3u8" },
+      { id:"7arc", name:"7TV Arcos",              url:S7+"7TVARCOS.m3u8" },
+      { id:"7cgi", name:"7TV Campo de Gibraltar", url:S7+"7TVALGECIRAS.m3u8" },
+      { id:"7lin", name:"7TV Linares",            url:S7+"7TVLINARES.m3u8" },
+      { id:"7jer", name:"7TV Jerez",              url:S7+"7TVJEREZ.m3u8" },
+      { id:"7sfe", name:"7TV San Fernando",       url:S7+"7TVSANFERNANDO.m3u8" },
+      { id:"7rot", name:"7TV Rota",               url:S7+"7TVROTA.m3u8" },
+    ]},
+  { id:"101tv", name:"101TV", cols:4, rows:3,
+    slots:[[1,1,2,2],[3,1,1,1],[4,1,1,1],[3,2,1,1],[4,2,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1]], clock:[4,3,1,1],
+    channels:[
+      { id:"1mal",  name:"101TV Málaga",          url:T101+"101televisionlive/smil:malagaott.smil/playlist.m3u8?DVR", backup:"https://www.youtube.com/channel/UCJzt0XyxSwpsNODokzG4iRw/live" },
+      { id:"1malc", name:"101TV Málaga Cofrade",  url:T101+"101weblive/smil:CofradeMalaga.smil/playlist.m3u8" },
+      { id:"1sev",  name:"101TV Sevilla",         url:T101+"101televisionlive/smil:sevillaott.smil/playlist.m3u8", backup:"https://www.youtube.com/channel/UCfNy1pSiPIhs0LxRpVeqeRA/live" },
+      { id:"1sevc", name:"101TV Sevilla Cofrade", url:T101+"101weblive/smil:CofradeSevilla.smil/playlist.m3u8" },
+      { id:"1gra",  name:"101TV Granada",         url:T101+"101weblive/smil:granada.smil/playlist.m3u8" },
+      { id:"1ant",  name:"101TV Antequera",       url:T101+"101weblive/smil:antequera.smil/playlist.m3u8" },
+      { id:"1cad",  name:"101TV Cádiz",           url:T101+"101weblive/smil:CADIZ.smil/playlist.m3u8" },
+      { id:"1cos",  name:"101TV Costa del Sol",   url:T101+"101weblive/smil:BENALMADENA.smil/playlist.m3u8" },
+    ]},
+  { id:"8tv", name:"8TV", cols:3, rows:3,
+    slots:[[1,1,2,2],[3,1,1,1],[3,2,1,1]], clock:[1,3,3,1],
+    channels:[
+      { id:"8sie", name:"8TV Sierra de Cádiz", url:"https://s.emisoras.tv:8081/sierradecadiz/index.m3u8" },
+      { id:"8chi", name:"8TV Chiclana",        url:"https://s.emisoras.tv:8081/chiclana/index.m3u8" },
+      { id:"8jan", name:"8TV La Janda",        url:"https://s.emisoras.tv:8081/lajanda/index.m3u8" },
+    ]},
+];
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -150,19 +207,14 @@ const store = {
   set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(e){} }
 };
 const custom = store.get("mv:urls") || {};
-let order = store.get("mv:order");                       // order[slot] = índice de canal
-if(!Array.isArray(order) || order.length !== CHANNELS.length || new Set(order).size !== CHANNELS.length || order.some(i => !(i >= 0 && i < CHANNELS.length)))
-  order = CHANNELS.map((_, i) => i);
-let audio = order[0];                                    // canal con sonido
-let soundUnlocked = false;
-let focusSlot = 0;
+let soundUnlocked = false, kbMode = false, focusSlot = 0;
+let G = null, CH = [], SLOTS = [], T = [], order = [], audio = 0;
 
 const ICON_ON  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>';
 const ICON_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></svg>';
 const ICON_GEAR= '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 
-/* ---------- YouTube ---------- */
-/* Devuelve la ruta de embed: un vídeo concreto o el directo de un canal. */
+/* ---------- YouTube: un vídeo concreto o el directo de un canal ---------- */
 function ytEmbed(u){
   let m = u.match(/youtube\.com\/(?:channel\/(UC[\w-]{22})(?:\/live)?|embed\/live_stream\?(?:.*&)?channel=(UC[\w-]{22}))/);
   if(m) return "live_stream?channel=" + (m[1] || m[2]) + "&";
@@ -173,9 +225,41 @@ function ytCmd(frame, func, args = []){
   try{ frame.contentWindow.postMessage(JSON.stringify({event:"command", func, args}), "*"); }catch(e){}
 }
 
-/* ---------- construir los monitores ---------- */
+/* ---------- selector de grupos ---------- */
+GROUPS.forEach((g, k) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.tabIndex = -1; b.textContent = g.name;
+  b.addEventListener("click", e => { e.stopPropagation(); setGroup(k); });
+  $("modes").appendChild(b);
+});
+
+/* ---------- montar un grupo ---------- */
 const wall = $("wall");
-const T = CHANNELS.map((ch, i) => {
+function setGroup(k){
+  k = (k + GROUPS.length) % GROUPS.length;
+  T.forEach(t => { stop(t); t.el.remove(); });          // apaga el grupo anterior
+  G = GROUPS[k]; CH = G.channels; SLOTS = G.slots;
+  store.set("mv:group", G.id);
+  [...$("modes").children].forEach((b, j) => b.classList.toggle("on", j === k));
+
+  wall.style.gridTemplateColumns = `repeat(${G.cols},minmax(0,1fr))`;
+  wall.style.gridTemplateRows    = `repeat(${G.rows},minmax(0,1fr))`;
+  const [c, r, w, h] = G.clock;
+  $("panel").style.gridArea = `${r} / ${c} / span ${h} / span ${w}`;
+  $("panel").classList.toggle("tall", w < 2 || h >= 2);
+  $("panel").classList.toggle("compact", w * 4 < G.cols * 2 && h < 2);   // menos de media pantalla de ancho
+
+  order = store.get("mv:order:" + G.id);
+  if(!Array.isArray(order) || order.length !== CH.length || new Set(order).size !== CH.length || order.some(i => !(i >= 0 && i < CH.length)))
+    order = CH.map((_, i) => i);
+  audio = order[0]; focusSlot = 0;
+
+  T = CH.map((ch, i) => makeTile(ch, i));
+  place(); setAudio(audio);
+  T.forEach((t, j) => { t.boot = setTimeout(() => start(t), j * 200); });   // escalonado
+}
+
+function makeTile(ch, i){
   const el = document.createElement("div");
   el.className = "tile";
   el.innerHTML = `<div class="pic"><div class="msg"><b></b><small></small></div></div>
@@ -186,14 +270,14 @@ const T = CHANNELS.map((ch, i) => {
   el.querySelector(".nm").textContent = ch.name;
   wall.insertBefore(el, $("panel"));
   const t = { ch, i, el, pic:el.querySelector(".pic"), msgB:el.querySelector(".msg b"), msgS:el.querySelector(".msg small"),
-              media:null, hls:null, backup:false, stall:null, retry:null, yt:false };
-
+              media:null, hls:null, backup:false, stall:null, retry:null, boot:null, yt:false, dead:false };
   el.querySelector(".snd").addEventListener("click", e => { e.stopPropagation(); unlock(); setAudio(i); });
   el.querySelector(".gear").addEventListener("click", e => { e.stopPropagation(); openEditor(i); });
   el.addEventListener("click", () => { unlock(); toPgm(i); });
   el.addEventListener("dblclick", e => { e.preventDefault(); toggleFs(); });
+  setState(t, "load", "SINTONIZANDO");
   return t;
-});
+}
 
 function place(){
   order.forEach((ci, s) => {
@@ -202,7 +286,7 @@ function place(){
     el.classList.toggle("pgm", s === 0);
     el.classList.toggle("focus", s === focusSlot && kbMode);
   });
-  store.set("mv:order", order);
+  store.set("mv:order:" + G.id, order);
 }
 
 /* ---------- reproducción ---------- */
@@ -214,14 +298,15 @@ function setState(t, st, title, sub){
 }
 
 function stop(t){
-  clearTimeout(t.stall); clearTimeout(t.retry);
+  t.dead = true;
+  clearTimeout(t.stall); clearTimeout(t.retry); clearTimeout(t.boot);
   if(t.hls){ t.hls.destroy(); t.hls = null; }
-  if(t.media){ t.media.remove(); t.media = null; }
+  if(t.media){ if(!t.yt){ t.media.removeAttribute("src"); try{ t.media.load(); }catch(e){} } t.media.remove(); t.media = null; }
   t.yt = false;
 }
 
 function start(t){
-  stop(t);
+  stop(t); t.dead = false;
   const src = urlOf(t);
   if(!src){ setState(t, "empty", "SIN ENLACE", "Pulsa ⚙ y pega el enlace de la señal"); return; }
 
@@ -242,13 +327,13 @@ function start(t){
   t.pic.prepend(v); t.media = v;
   t.stall = setTimeout(() => { if(v.readyState < 3) fail(t); }, 20000);
   v.addEventListener("playing", () => { clearTimeout(t.stall); setState(t, null); applyAudio(t); });
-  v.addEventListener("error", () => { if(!t.hls) fail(t); });
+  v.addEventListener("error", () => { if(!t.hls && !t.dead) fail(t); });
 
   if(window.Hls && Hls.isSupported()){
     const h = new Hls({ capLevelToPlayerSize:true, liveSyncDurationCount:3, maxBufferLength:12,
                         manifestLoadingMaxRetry:2, levelLoadingMaxRetry:2, fragLoadingMaxRetry:3 });
     h.on(Hls.Events.ERROR, (e, d) => {
-      if(!d.fatal) return;
+      if(!d.fatal || t.dead) return;
       if(d.type === Hls.ErrorTypes.MEDIA_ERROR){ h.recoverMediaError(); return; }
       fail(t);
     });
@@ -260,9 +345,10 @@ function start(t){
 }
 
 function fail(t){
+  if(t.dead) return;
   const hasBackup = !custom[t.ch.id] && t.ch.backup;
   if(hasBackup && !t.backup){ t.backup = true; start(t); return; }
-  stop(t); t.backup = false;
+  stop(t); t.dead = false; t.backup = false;
   setState(t, "fail", "SIN SEÑAL", "Reintentando cada minuto · ⚙ para pegar otro enlace");
   t.retry = setTimeout(() => start(t), 60000);
 }
@@ -283,7 +369,7 @@ function setAudio(i){
     applyAudio(t);
   });
   $("onair").innerHTML = "Audio: <span></span>";
-  $("onair").querySelector("span").textContent = CHANNELS[audio].name;
+  $("onair").querySelector("span").textContent = CH[audio].name;
 }
 function toPgm(i){
   const s = order.indexOf(i);
@@ -309,14 +395,14 @@ function hideToast(){ $("toast").classList.add("hide"); }
 let edIdx = -1;
 function openEditor(i){
   edIdx = i;
-  $("edTitle").textContent = "Enlace de " + CHANNELS[i].name;
-  $("edUrl").value = custom[CHANNELS[i].id] || CHANNELS[i].url || "";
+  $("edTitle").textContent = "Enlace de " + CH[i].name;
+  $("edUrl").value = custom[CH[i].id] || CH[i].url || "";
   $("ed").classList.add("on");
   setTimeout(() => { $("edUrl").focus(); $("edUrl").select(); }, 30);
 }
 function closeEditor(){ $("ed").classList.remove("on"); edIdx = -1; }
 function saveEditor(val){
-  const ch = CHANNELS[edIdx], t = T[edIdx];
+  const ch = CH[edIdx], t = T[edIdx];
   val = (val || "").trim();
   if(val && val !== ch.url) custom[ch.id] = val; else delete custom[ch.id];
   store.set("mv:urls", custom);
@@ -340,11 +426,10 @@ document.addEventListener("fullscreenchange", syncFs);
 document.addEventListener("webkitfullscreenchange", syncFs);
 
 /* ---------- mando y teclado ---------- */
-let kbMode = false;
 function moveFocus(dx, dy){
   const [c, r, w, h] = SLOTS[focusSlot], cx = c + w / 2, cy = r + h / 2;
   let best = -1, bd = Infinity;
-  SLOTS.forEach(([c2, r2, w2, h2], s) => {
+  SLOTS.slice(0, CH.length).forEach(([c2, r2, w2, h2], s) => {
     if(s === focusSlot) return;
     const x = c2 + w2 / 2 - cx, y = r2 + h2 / 2 - cy;
     if(dx && Math.sign(x) !== dx) return;
@@ -355,9 +440,11 @@ function moveFocus(dx, dy){
   if(best >= 0) focusSlot = best;
   place();
 }
+const curGroup = () => GROUPS.indexOf(G);
 const KEYS = { ArrowUp:"up", ArrowDown:"down", ArrowLeft:"left", ArrowRight:"right",
   Enter:"ok", NumpadEnter:"ok", " ":"ok", Select:"ok", ContextMenu:"menu", Info:"menu", m:"mute", M:"mute",
-  MediaPlayPause:"mute", f:"fs", F:"fs", e:"menu", E:"menu", Escape:"back", GoBack:"back", Backspace:"back" };
+  MediaPlayPause:"mute", f:"fs", F:"fs", e:"menu", E:"menu", Escape:"back", GoBack:"back", Backspace:"back",
+  ChannelUp:"gnext", ChannelDown:"gprev", PageUp:"gprev", PageDown:"gnext", g:"gnext", G:"gnext" };
 
 document.addEventListener("keydown", e => {
   if($("ed").classList.contains("on")){
@@ -366,10 +453,15 @@ document.addEventListener("keydown", e => {
     return;
   }
   let a = KEYS[e.key];
-  if(!a && (e.keyCode === 4 || e.keyCode === 10009 || e.keyCode === 461)) a = "back";
-  if(/^[0-9]$/.test(e.key)){ e.preventDefault(); unlock(); const n = e.key === "0" ? 9 : +e.key - 1; if(CHANNELS[n]) toPgm(n); return; }
+  if(!a){
+    if(e.keyCode === 4 || e.keyCode === 10009 || e.keyCode === 461) a = "back";
+    else if(e.keyCode === 427 || e.keyCode === 166) a = "gnext";
+    else if(e.keyCode === 428 || e.keyCode === 167) a = "gprev";
+  }
+  if(/^[0-9]$/.test(e.key)){ e.preventDefault(); unlock(); const n = e.key === "0" ? 9 : +e.key - 1; if(CH[n]) toPgm(n); return; }
   if(!a) return;
   e.preventDefault(); unlock();
+  if(a === "gnext" || a === "gprev"){ setGroup(curGroup() + (a === "gnext" ? 1 : -1)); toast("Grupo: " + G.name, 2000); return; }
   if(!kbMode){ kbMode = true; place(); if(a !== "ok" && a !== "mute" && a !== "menu") return; }
   if(a === "up") moveFocus(0,-1);
   else if(a === "down") moveFocus(0,1);
@@ -395,9 +487,9 @@ function tick(){
 }
 tick(); setInterval(tick, 1000);
 
-/* ---------- arranque ---------- */
-place(); setAudio(audio);
-T.forEach((t, k) => setTimeout(() => start(t), k * 250));   // escalonado para no saturar al arrancar
+/* ---------- arranque: el último grupo que se vio ---------- */
+const lastG = GROUPS.findIndex(g => g.id === store.get("mv:group"));
+setGroup(lastG >= 0 ? lastG : 0);
 toast("Toca la pantalla o pulsa OK para activar el sonido", 0);
 </script>
 </body>
