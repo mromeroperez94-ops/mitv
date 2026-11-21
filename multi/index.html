@@ -162,24 +162,24 @@ const GROUPS = [
       { id:"csur", name:"Canal Sur",         url:"https://dfk2a268yviz9.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-ddiii1m6jt6of/CanalSurAndaluciaES.m3u8", backup:"https://live-24-canalsur.interactvty.pro/9bb0f4edcb8946e79f5017ddca6c02b0/74cdbd1b401a7598ab8f3e9b5652c9909daa60dd4f6f96f28396a3f1cfd926f2.m3u8" },
       { id:"tm",   name:"Telemadrid",        url:"https://live.telemadrid.cross-media.es/6389770581112/eu-central-1/6416060453001/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJob3N0IjoiajI5YjgyLmVncmVzcy5haGc3NmwiLCJhY2NvdW50X2lkIjoiNjQxNjA2MDQ1MzAwMSIsImVobiI6ImxpdmUudGVsZW1hZHJpZC5jcm9zcy1tZWRpYS5lcyIsImlzcyI6ImJsaXZlLXBsYXliYWNrLXNvdXJjZS1hcGkiLCJzdWIiOiJwYXRobWFwdG9rZW4iLCJhdWQiOlsiNjQxNjA2MDQ1MzAwMSJdLCJqdGkiOiI2Mzg5NzcwNTgxMTEyIn0.kqriAMUkHT6m0V6wkCHJum_EUyL4PAi1zJMKlfmYHEU/playlist-hls.m3u8" },
     ]},
-  { id:"7tv", name:"7TV", cols:5, rows:4,
+  { id:"7tv", name:"7TV", cols:5, rows:4, first:"7and",   // Andalucía siempre en PGM; el resto, por ciudad
     slots:[[1,1,2,2],[3,1,1,1],[4,1,1,1],[5,1,1,1],[3,2,1,1],[4,2,1,1],[5,2,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1],[4,3,1,1],[5,3,1,1],[1,4,1,1],[2,4,1,1],[3,4,1,1]], clock:[4,4,2,1],
     channels:[
       { id:"7and", name:"7TV Andalucía",          url:SE7+"regional.m3u8" },
+      { id:"7alj", name:"7TV Aljarafe",           url:S7+"7TVALJARAFE.m3u8" },
       { id:"7alm", name:"7TV Almería",            url:S7+"7TVALMERIA.m3u8", backup:SE7+"7TVALMERIA.m3u8" },
+      { id:"7arc", name:"7TV Arcos",              url:S7+"7TVARCOS.m3u8" },
       { id:"7cad", name:"7TV Cádiz",              url:S7+"7TVCADIZ.m3u8" },
+      { id:"7cgi", name:"7TV Campo de Gibraltar", url:S7+"7TVALGECIRAS.m3u8" },
       { id:"7cor", name:"7TV Córdoba",            url:S7+"7TVCORDOBA.m3u8" },
       { id:"7gra", name:"7TV Granada",            url:S7+"7TVGRANADA.m3u8", backup:SE7+"7TVGRANADA.m3u8" },
       { id:"7jae", name:"7TV Jaén",               url:S7+"7TVJAEN.m3u8" },
-      { id:"7mal", name:"7TV Málaga",             url:S7+"7TVMALAGA.m3u8" },
-      { id:"7sev", name:"7TV Sevilla",            url:SE7+"7TVSEVILLA.m3u8" },
-      { id:"7alj", name:"7TV Aljarafe",           url:S7+"7TVALJARAFE.m3u8" },
-      { id:"7arc", name:"7TV Arcos",              url:S7+"7TVARCOS.m3u8" },
-      { id:"7cgi", name:"7TV Campo de Gibraltar", url:S7+"7TVALGECIRAS.m3u8" },
-      { id:"7lin", name:"7TV Linares",            url:S7+"7TVLINARES.m3u8" },
       { id:"7jer", name:"7TV Jerez",              url:S7+"7TVJEREZ.m3u8" },
-      { id:"7sfe", name:"7TV San Fernando",       url:S7+"7TVSANFERNANDO.m3u8" },
+      { id:"7lin", name:"7TV Linares",            url:S7+"7TVLINARES.m3u8" },
+      { id:"7mal", name:"7TV Málaga",             url:S7+"7TVMALAGA.m3u8" },
       { id:"7rot", name:"7TV Rota",               url:S7+"7TVROTA.m3u8" },
+      { id:"7sfe", name:"7TV San Fernando",       url:S7+"7TVSANFERNANDO.m3u8" },
+      { id:"7sev", name:"7TV Sevilla",            url:SE7+"7TVSEVILLA.m3u8" },
     ]},
   { id:"101tv", name:"101TV", cols:4, rows:3,
     slots:[[1,1,2,2],[3,1,1,1],[4,1,1,1],[3,2,1,1],[4,2,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1]], clock:[4,3,1,1],
@@ -208,7 +208,7 @@ const store = {
   set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(e){} }
 };
 const custom = store.get("mv:urls") || {};
-let soundUnlocked = false, kbMode = false, focusSlot = 0, muted = false;
+let soundUnlocked = false, kbMode = false, focusSlot = 0, muted = !!store.get("mv:muted");
 let G = null, CH = [], SLOTS = [], T = [], order = [], audio = 0;
 
 const ICON_ON  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>';
@@ -250,14 +250,15 @@ function setGroup(k){
   $("panel").classList.toggle("tall", w < 2 || h >= 2);
   $("panel").classList.toggle("compact", w * 4 < G.cols * 2 && h < 2);   // menos de media pantalla de ancho
 
-  order = store.get("mv:order:" + G.id);
+  const orderKey = "mv:order:" + G.id + ":" + CH.map(c => c.id).join(",");
+  order = store.get(orderKey);
   if(!Array.isArray(order) || order.length !== CH.length || new Set(order).size !== CH.length || order.some(i => !(i >= 0 && i < CH.length)))
     order = CH.map((_, i) => i);
   if(G.first){                                            // canal fijo en PGM al entrar
     const fi = CH.findIndex(c => c.id === G.first), s = order.indexOf(fi);
     if(s > 0) [order[0], order[s]] = [order[s], order[0]];
   }
-  audio = order[0]; muted = false; focusSlot = 0;
+  audio = order[0]; focusSlot = 0;                       // el silencio se mantiene al cambiar de grupo
 
   T = CH.map((ch, i) => makeTile(ch, i));
   place(); setAudio(audio);
@@ -291,7 +292,7 @@ function place(){
     el.classList.toggle("pgm", s === 0);
     el.classList.toggle("focus", s === focusSlot && kbMode);
   });
-  store.set("mv:order:" + G.id, order);
+  store.set("mv:order:" + G.id + ":" + CH.map(c => c.id).join(","), order);
 }
 
 /* ---------- reproducción ---------- */
@@ -367,7 +368,8 @@ function applyAudio(t){
 }
 /* Pulsar el altavoz de la señal que ya suena la silencia; pulsarlo otra vez la devuelve. */
 function toggleAudio(i){
-  if(i === audio) muted = !muted; else muted = false;
+  if(i === audio) muted = !muted; else muted = false;      // el altavoz de otra señal la pone a sonar
+  store.set("mv:muted", muted);
   setAudio(i);
 }
 function setAudio(i){
@@ -386,7 +388,7 @@ function setAudio(i){
 function toPgm(i){
   const s = order.indexOf(i);
   if(s > 0){ [order[0], order[s]] = [order[s], order[0]]; }
-  focusSlot = 0; muted = false;
+  focusSlot = 0;                                          // si estaba silenciado, sigue silenciado
   place(); setAudio(i);
 }
 
