@@ -12,7 +12,7 @@
     --bg:#000; --panel:rgba(10,14,22,.94); --row:rgba(255,255,255,.04);
     --txt:#f3f6fb; --dim:#8d99ad; --line:rgba(255,255,255,.08);
     --acc:#5aa9ff; --acc-ink:#04121f; --live:#ff4d5e;
-    --and:#2fbf71; --loc:#2fb6a3; --ptv:#a78bfa; --s7:#ff8a5b;
+    --pt:#e8423f; --and:#2fbf71; --loc:#2fb6a3; --ptv:#a78bfa; --s7:#ff8a5b;
     --safe-x:4vw; --safe-y:4vh;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -213,6 +213,9 @@ const S7  = "https://streaming004.gestec-video.com/hls/";
 const SE7 = "https://especial7tv.gestec-video.com/hls/";
 
 const SECTIONS = [
+  { title:"Portugal", short:"Portugal", color:"var(--pt)", channels:[
+    { name:"CNN Portugal", url:"https://video-auth4.iol.pt/live_cnn/live_cnn/playlist.m3u8?wmsAuthSign=c2VydmVyX3RpbWU9MTEvMjEvMjAyNiA4OjI4OjE4IFBNJmhhc2hfdmFsdWU9eU1COUR5R1FudDdhbFBaaS9CNHJHZz09JnZhbGlkbWludXRlcz0xNDQwJmlkPWM2MjdjY2I2LTNmNTYtNDcyYy1hYzQ4LTI5NmU1NjNmZDk2Nw==", logo:FB("cnnportugal") },
+  ]},
   { title:"Andalucía", short:"Andalucía", color:"var(--and)", channels:[
     { name:"Canal Sur", url:"https://dfk2a268yviz9.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-ddiii1m6jt6of/CanalSurAndaluciaES.m3u8", backup:"https://live-24-canalsur.interactvty.pro/9bb0f4edcb8946e79f5017ddca6c02b0/74cdbd1b401a7598ab8f3e9b5652c9909daa60dd4f6f96f28396a3f1cfd926f2.m3u8", logo:FB("canalsurradioytv") },
   ]},
