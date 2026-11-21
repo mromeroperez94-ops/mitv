@@ -36,6 +36,7 @@
   .umd .tag{display:none;font-size:1.1vh;font-weight:900;letter-spacing:.1em;padding:.15vh .6vh;border-radius:.3vh;background:var(--pgm);color:#fff}
   .umd .snd{width:2.2vh;height:2.2vh;display:flex;align-items:center;justify-content:center;border-radius:.3vh;color:#5b6270}
   .umd .snd svg{width:1.7vh;height:1.7vh}
+  .umd button svg{pointer-events:none}   /* el toque siempre llega al botón, aunque cambie el icono */
   .umd .gear{width:2.2vh;height:2.2vh;display:none;align-items:center;justify-content:center;color:var(--dim)}
   .umd .gear svg{width:1.6vh;height:1.6vh}
   .tile:hover .gear,.tile.focus .gear{display:flex}
@@ -119,7 +120,7 @@
       <div id="date"></div>
       <div id="onair">Audio: <span>—</span></div>
       <div id="modes"></div>
-      <div id="keys"><b>Toca una señal</b> o <b>OK</b>: a PGM con sonido · <b>altavoz</b>: solo sonido · <b>CH +/−</b>: cambiar grupo · <b>⚙ / Menú</b>: enlace</div>
+      <div id="keys"><b>Toca una señal</b> o <b>OK</b>: a PGM con sonido · <b>altavoz</b>: sonido sí/no · <b>CH +/−</b>: cambiar grupo · <b>⚙ / Menú</b>: enlace</div>
     </div>
     <button id="fs" type="button">Pantalla completa</button>
   </div>
@@ -192,12 +193,12 @@ const GROUPS = [
       { id:"1cad",  name:"101TV Cádiz",           url:T101+"101weblive/smil:CADIZ.smil/playlist.m3u8" },
       { id:"1cos",  name:"101TV Costa del Sol",   url:T101+"101weblive/smil:BENALMADENA.smil/playlist.m3u8" },
     ]},
-  { id:"8tv", name:"8TV", cols:3, rows:3,
+  { id:"8tv", name:"8TV", cols:3, rows:3, first:"8jan",   // La Janda siempre en PGM al entrar
     slots:[[1,1,2,2],[3,1,1,1],[3,2,1,1]], clock:[1,3,3,1],
     channels:[
+      { id:"8jan", name:"8TV La Janda",        url:"https://s.emisoras.tv:8081/lajanda/index.m3u8" },
       { id:"8sie", name:"8TV Sierra de Cádiz", url:"https://s.emisoras.tv:8081/sierradecadiz/index.m3u8" },
       { id:"8chi", name:"8TV Chiclana",        url:"https://s.emisoras.tv:8081/chiclana/index.m3u8" },
-      { id:"8jan", name:"8TV La Janda",        url:"https://s.emisoras.tv:8081/lajanda/index.m3u8" },
     ]},
 ];
 
@@ -207,7 +208,7 @@ const store = {
   set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(e){} }
 };
 const custom = store.get("mv:urls") || {};
-let soundUnlocked = false, kbMode = false, focusSlot = 0;
+let soundUnlocked = false, kbMode = false, focusSlot = 0, muted = false;
 let G = null, CH = [], SLOTS = [], T = [], order = [], audio = 0;
 
 const ICON_ON  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>';
@@ -252,7 +253,11 @@ function setGroup(k){
   order = store.get("mv:order:" + G.id);
   if(!Array.isArray(order) || order.length !== CH.length || new Set(order).size !== CH.length || order.some(i => !(i >= 0 && i < CH.length)))
     order = CH.map((_, i) => i);
-  audio = order[0]; focusSlot = 0;
+  if(G.first){                                            // canal fijo en PGM al entrar
+    const fi = CH.findIndex(c => c.id === G.first), s = order.indexOf(fi);
+    if(s > 0) [order[0], order[s]] = [order[s], order[0]];
+  }
+  audio = order[0]; muted = false; focusSlot = 0;
 
   T = CH.map((ch, i) => makeTile(ch, i));
   place(); setAudio(audio);
@@ -271,7 +276,7 @@ function makeTile(ch, i){
   wall.insertBefore(el, $("panel"));
   const t = { ch, i, el, pic:el.querySelector(".pic"), msgB:el.querySelector(".msg b"), msgS:el.querySelector(".msg small"),
               media:null, hls:null, backup:false, stall:null, retry:null, boot:null, yt:false, dead:false };
-  el.querySelector(".snd").addEventListener("click", e => { e.stopPropagation(); unlock(); setAudio(i); });
+  el.querySelector(".snd").addEventListener("click", e => { e.stopPropagation(); unlock(); toggleAudio(i); });
   el.querySelector(".gear").addEventListener("click", e => { e.stopPropagation(); openEditor(i); });
   el.addEventListener("click", () => { unlock(); toPgm(i); });
   el.addEventListener("dblclick", e => { e.preventDefault(); toggleFs(); });
@@ -355,26 +360,33 @@ function fail(t){
 
 /* ---------- sonido: solo uno a la vez ---------- */
 function applyAudio(t){
-  const on = soundUnlocked && t.i === audio;
+  const on = soundUnlocked && !muted && t.i === audio;
   if(!t.media) return;
   if(t.yt){ ytCmd(t.media, on ? "unMute" : "mute"); if(on) ytCmd(t.media, "setVolume", [100]); ytCmd(t.media, "playVideo"); }
   else { t.media.muted = !on; if(on) t.media.play().catch(() => {}); }
 }
+/* Pulsar el altavoz de la señal que ya suena la silencia; pulsarlo otra vez la devuelve. */
+function toggleAudio(i){
+  if(i === audio) muted = !muted; else muted = false;
+  setAudio(i);
+}
 function setAudio(i){
   audio = i;
   T.forEach(t => {
-    const on = t.i === audio;
+    const on = t.i === audio && !muted;
     t.el.classList.toggle("audio", on);
-    t.el.querySelector(".snd").innerHTML = on ? ICON_ON : ICON_OFF;
+    const snd = t.el.querySelector(".snd"), ico = on ? ICON_ON : ICON_OFF;
+    if(snd.dataset.on !== String(on)){ snd.innerHTML = ico; snd.dataset.on = on; }
     applyAudio(t);
   });
   $("onair").innerHTML = "Audio: <span></span>";
-  $("onair").querySelector("span").textContent = CH[audio].name;
+  $("onair").querySelector("span").textContent = muted ? "silenciado" : CH[audio].name;
+  $("onair").querySelector("span").style.color = muted ? "var(--dim)" : "";
 }
 function toPgm(i){
   const s = order.indexOf(i);
   if(s > 0){ [order[0], order[s]] = [order[s], order[0]]; }
-  focusSlot = 0;
+  focusSlot = 0; muted = false;
   place(); setAudio(i);
 }
 
@@ -468,7 +480,7 @@ document.addEventListener("keydown", e => {
   else if(a === "left") moveFocus(-1,0);
   else if(a === "right") moveFocus(1,0);
   else if(a === "ok") toPgm(order[focusSlot]);
-  else if(a === "mute") setAudio(order[focusSlot]);
+  else if(a === "mute") toggleAudio(order[focusSlot]);
   else if(a === "menu") openEditor(order[focusSlot]);
   else if(a === "fs") toggleFs();
   else if(a === "back"){ kbMode = false; place(); }
