@@ -570,7 +570,7 @@ const UA = navigator.userAgent;
 const DESKTOP = matchMedia("(hover: hover) and (pointer: fine)").matches &&
   !/Android|CrKey|GoogleTV|SMART-?TV|SmartTV|AFT|BRAVIA|Tizen|Web0S|webOS|HbbTV|NetCast|Mobi|iPhone|iPad/i.test(UA);
 const ctrl = $("ctrl"), cVol = $("cVol");
-let ctrlTimer = null, overCtrl = false, mouseY = -1;
+let ctrlTimer = null, overCtrl = false, mouseY = -1, quietUntil = 0;
 function ctrlVisible(){ return DESKTOP && !ctrl.classList.contains("hide"); }
 function syncCtrl(){
   document.body.classList.toggle("guide-open", guideOpen());
@@ -596,9 +596,11 @@ function syncCtrl(){
 /* La barra se queda mientras el ratón está cerca de ella; si el ratón se para
    en el resto de la pantalla, se oculta casi al instante. */
 function nearBar(){ return overCtrl || (mouseY >= 0 && mouseY > innerHeight - ctrl.offsetHeight - innerHeight * .08); }
-function keepCtrl(){ return overCtrl || ctrl.contains(document.activeElement) || cVol.classList.contains("drag"); }
-function hideCtrl(){
-  if(!DESKTOP || keepCtrl()) return;
+/* El foco solo retiene la barra si llegaste con el teclado (Tab); un clic no la deja fija. */
+function kbFocus(){ return !!ctrl.querySelector(":focus-visible"); }
+function keepCtrl(){ return overCtrl || kbFocus() || cVol.classList.contains("drag"); }
+function hideCtrl(force){
+  if(!DESKTOP || (!force && keepCtrl())) return;
   clearTimeout(ctrlTimer);
   ctrl.classList.add("hide"); document.body.classList.add("idle");
 }
@@ -607,7 +609,7 @@ function showCtrl(){
   document.body.classList.remove("idle");
   ctrl.classList.remove("hide"); hideBanner(); syncCtrl();
   clearTimeout(ctrlTimer);
-  ctrlTimer = setTimeout(() => keepCtrl() ? showCtrl() : hideCtrl(), nearBar() || ctrl.contains(document.activeElement) ? 3000 : 700);
+  ctrlTimer = setTimeout(() => keepCtrl() ? showCtrl() : hideCtrl(), nearBar() || kbFocus() ? 2500 : 250);
 }
 function toggleMute(){
   if(video.muted || video.volume === 0){ video.muted = false; if(video.volume === 0) video.volume = .5; video.play().catch(()=>{}); toastEl.classList.add("hide"); }
@@ -629,26 +631,28 @@ function toggleFull(){
     const req = el.requestFullscreen || el.webkitRequestFullscreen;
     if(req){ const p = req.call(el); if(p && p.catch) p.catch(() => toast("Este navegador no deja poner pantalla completa", 3000)); }
   }
-  showCtrl();
+  // la barra la quita el evento de pantalla completa, sin esperas
 }
 const savedVol = parseInt(store.get("tv:vol") || "", 10);
 if(savedVol >= 1 && savedVol <= 100) video.volume = savedVol / 100;
 
 if(DESKTOP){
   document.body.classList.add("desktop");
-  document.addEventListener("mousemove", e => { mouseY = e.clientY; showCtrl(); });
+  document.addEventListener("mousemove", e => { mouseY = e.clientY; if(Date.now() > quietUntil) showCtrl(); });
   video.addEventListener("playing", hideCtrl);   // en cuanto arranca la imagen, la barra se va
   document.addEventListener("focusin", e => { if(ctrl.contains(e.target)) showCtrl(); });
-  ctrl.addEventListener("mouseenter", () => { overCtrl = true; showCtrl(); });
-  ctrl.addEventListener("mouseleave", () => { overCtrl = false; showCtrl(); });
+  ctrl.addEventListener("mouseenter", () => { overCtrl = true; if(Date.now() > quietUntil) showCtrl(); });
+  ctrl.addEventListener("mouseleave", () => { overCtrl = false; if(Date.now() > quietUntil && !ctrl.classList.contains("hide")) showCtrl(); });
   $("cMenu").addEventListener("click", () => { guideOpen() ? closeGuide() : openGuide(); showCtrl(); });
   $("cMute").addEventListener("click", toggleMute);
   $("cFull").addEventListener("click", toggleFull);
   cVol.addEventListener("input", () => setVol(+cVol.value));
   cVol.addEventListener("pointerdown", () => cVol.classList.add("drag"));
   document.addEventListener("pointerup", () => cVol.classList.remove("drag"));
-  document.addEventListener("fullscreenchange", syncCtrl);
-  document.addEventListener("webkitfullscreenchange", syncCtrl);
+  // al entrar o salir de pantalla completa, la barra se quita al momento
+  const onFull = () => { syncCtrl(); overCtrl = false; if(document.activeElement && ctrl.contains(document.activeElement)) document.activeElement.blur(); quietUntil = Date.now() + 700; hideCtrl(true); };
+  document.addEventListener("fullscreenchange", onFull);
+  document.addEventListener("webkitfullscreenchange", onFull);
   video.addEventListener("volumechange", syncCtrl);
   const clickScreen = () => {
     if(guideOpen()){ closeGuide(); return; }        // clic en la imagen: cierra la lista al momento
