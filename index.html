@@ -16,7 +16,7 @@
     --safe-x:4vw; --safe-y:4vh;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%;cursor:none;background:var(--bg);color:var(--txt);overflow:hidden;
+  html,body{height:100%;background:var(--bg);color:var(--txt);overflow:hidden;
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     -webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none}
   /* Tamaños en vh: se ven igual en 720p y 1080p y desde el sofá */
@@ -156,6 +156,35 @@
   .key{display:inline-block;min-width:1.7rem;padding:.1rem .45rem;border-radius:.4rem;background:var(--acc);
     color:var(--acc-ink);font-weight:800;text-align:center;font-size:.85em}
 
+
+  /* ---------- controles de escritorio (solo con ratón, nunca en la tele) ---------- */
+  body.idle, body.idle *{cursor:none}
+  #ctrl{position:fixed;left:0;right:0;bottom:0;display:none;align-items:center;gap:1.2rem;
+    padding:3.2rem var(--safe-x) 1.4rem;background:linear-gradient(transparent,rgba(4,7,12,.92) 60%);
+    transition:opacity .25s,transform .25s,left .28s cubic-bezier(.2,.8,.2,1);z-index:5}
+  body.desktop #ctrl{display:flex}
+  #ctrl.hide{opacity:0;transform:translateY(.8rem);pointer-events:none}
+  body.guide-open #ctrl{left:min(100vw,max(34vw,24rem))}
+  .cbtn{height:2.6rem;min-width:2.6rem;padding:0 .9rem;border-radius:1.3rem;display:inline-flex;align-items:center;
+    justify-content:center;gap:.55rem;font-size:.95rem;font-weight:700;color:var(--txt);
+    background:rgba(255,255,255,.08);border:1px solid var(--line);transition:background .15s,color .15s}
+  .cbtn.icon{padding:0}
+  .cbtn:hover{background:rgba(255,255,255,.16)}
+  .cbtn:focus-visible,#cVol:focus-visible{outline:.18rem solid var(--acc);outline-offset:.18rem}
+  .cbtn[aria-expanded="true"]{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+  .cbtn svg{width:1.25rem;height:1.25rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .cinfo{flex:1;min-width:0;display:flex;align-items:center;gap:.8rem}
+  .cinfo .cnum{font-size:1.3rem;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums}
+  .cinfo .cname{font-size:1.15rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cvol{display:flex;align-items:center;gap:.6rem}
+  #cVol{-webkit-appearance:none;appearance:none;width:0;opacity:0;height:.35rem;border-radius:1rem;cursor:pointer;
+    background:linear-gradient(90deg,var(--acc) var(--v,100%),rgba(255,255,255,.22) var(--v,100%));
+    transition:width .2s,opacity .2s}
+  .cvol:hover #cVol,.cvol:focus-within #cVol,#cVol.drag{width:7.5rem;opacity:1}
+  #cVol::-webkit-slider-thumb{-webkit-appearance:none;width:1rem;height:1rem;border-radius:50%;background:#fff;border:0}
+  #cVol::-moz-range-thumb{width:1rem;height:1rem;border-radius:50%;background:#fff;border:0}
+  .cvol .pct{font-size:.8rem;color:var(--dim);font-variant-numeric:tabular-nums;width:2.6rem}
+  @media (prefers-reduced-motion:reduce){#ctrl,#cVol{transition:none}}
 </style>
 </head>
 <body>
@@ -202,6 +231,23 @@
 </aside>
 
 <div id="digits"></div>
+<div id="ctrl" class="hide" role="toolbar" aria-label="Controles del reproductor">
+  <button class="cbtn" id="cMenu" aria-expanded="false" aria-controls="guide" title="Canales (C)">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Canales</span>
+  </button>
+  <div class="cinfo" aria-live="polite"><span class="cnum" id="cNum"></span><span class="cname" id="cName"></span><span class="live">EN VIVO</span></div>
+  <div class="cvol">
+    <button class="cbtn icon" id="cMute" aria-pressed="false" aria-label="Silenciar" title="Silenciar (M)">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="w1" d="M16.5 9.5a3.5 3.5 0 0 1 0 5"/><path class="w2" d="M19 7a7 7 0 0 1 0 10"/><path class="x" d="M17 9l5 6M22 9l-5 6" style="display:none"/></svg>
+    </button>
+    <input type="range" id="cVol" min="0" max="100" step="5" value="100" aria-label="Volumen" title="Volumen (+ / −)">
+    <span class="pct" id="cPct">100%</span>
+  </div>
+  <button class="cbtn icon" id="cFull" aria-label="Pantalla completa" title="Pantalla completa (F)">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path class="in" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><path class="out" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" style="display:none"/></svg>
+  </button>
+</div>
+
 <div id="toast" class="hide"></div>
 
 <script>
@@ -329,10 +375,11 @@ function refreshRows(){
 let guideTimer = null;
 const guideOpen = () => guide.classList.contains("open");
 function openGuide(){
+  setTimeout(syncCtrl);
   guide.classList.add("open"); hideBanner();
   setFocus(cur >= 0 ? cur : 0);
 }
-function closeGuide(){ guide.classList.remove("open"); clearTimeout(guideTimer); }
+function closeGuide(){ guide.classList.remove("open"); clearTimeout(guideTimer); syncCtrl(); }
 function armGuideTimer(){
   clearTimeout(guideTimer);
   if(cur >= 0) guideTimer = setTimeout(closeGuide, 12000);   // se cierra sola si no tocas nada
@@ -341,6 +388,7 @@ function armGuideTimer(){
 /* ---------- banner ---------- */
 let bannerTimer = null;
 function showBanner(){
+  if(ctrlVisible()) { syncCtrl(); return; }
   if(cur < 0 || guideOpen()) return;
   const ch = CH[cur], s = SECTIONS[ch.sec];
   $("bNum").textContent = ch.num;
@@ -412,7 +460,8 @@ function startPlayback(){
   if(p && p.catch) p.catch(() => {
     video.muted = true;
     video.play().catch(()=>{});
-    toast('<span class="key">OK</span> Pulsa OK para activar el sonido', 8000);
+    toast(DESKTOP ? '<span class="key">M</span> Haz clic en el vídeo o pulsa M para activar el sonido'
+                  : '<span class="key">OK</span> Pulsa OK para activar el sonido', 8000);
   });
 }
 function unmute(){
@@ -469,6 +518,16 @@ const KEYS = {
   ContextMenu:"menu", Info:"info", MediaPlayPause:"ok"
 };
 document.addEventListener("keydown", e => {
+  if(e.target === $("cVol") && /^Arrow|Home|End|PageUp|PageDown/.test(e.key)) return;   // el deslizador usa sus flechas
+  if(e.target.closest && e.target.closest("#ctrl") && (e.key === "Enter" || e.key === " ")) return;
+  if(!e.ctrlKey && !e.metaKey && !e.altKey){
+    const k = e.key.toLowerCase();
+    if(k === "m"){ e.preventDefault(); toggleMute(); return; }
+    if(k === "f"){ e.preventDefault(); toggleFull(); return; }
+    if(k === "c"){ e.preventDefault(); guideOpen() ? closeGuide() : openGuide(); return; }
+    if(e.key === "+" || e.key === "="){ e.preventDefault(); stepVol(+10); return; }
+    if(e.key === "-" || e.key === "_"){ e.preventDefault(); stepVol(-10); return; }
+  }
   let a = KEYS[e.key];
   if(!a){
     if(e.keyCode === 4 || e.keyCode === 10009 || e.keyCode === 461) a = "back";
@@ -503,8 +562,92 @@ document.addEventListener("keydown", e => {
   }
 }, true);
 
-/* ---------- ratón: sin botones en pantalla, todo va con el mando ---------- */
-video.addEventListener("click", () => { if(unmute()) return; guideOpen() ? closeGuide() : openGuide(); });
+/* ---------- ratón y controles de escritorio ----------
+   Solo se activan con ratón de verdad y fuera de navegadores de tele
+   (TV Bro y similares usan un cursor simulado: ahí no aparecen nunca). */
+const UA = navigator.userAgent;
+const DESKTOP = matchMedia("(hover: hover) and (pointer: fine)").matches &&
+  !/Android|CrKey|GoogleTV|SMART-?TV|SmartTV|AFT|BRAVIA|Tizen|Web0S|webOS|HbbTV|NetCast|Mobi|iPhone|iPad/i.test(UA);
+const ctrl = $("ctrl"), cVol = $("cVol");
+let ctrlTimer = null, overCtrl = false;
+function ctrlVisible(){ return DESKTOP && !ctrl.classList.contains("hide"); }
+function syncCtrl(){
+  document.body.classList.toggle("guide-open", guideOpen());
+  $("cMenu").setAttribute("aria-expanded", guideOpen() ? "true" : "false");
+  if(cur >= 0){ $("cNum").textContent = CH[cur].num; $("cName").textContent = CH[cur].name; }
+  const off = video.muted || video.volume === 0, v = Math.round(video.volume * 100);
+  const mb = $("cMute");
+  mb.setAttribute("aria-pressed", off ? "true" : "false");
+  mb.setAttribute("aria-label", off ? "Activar sonido" : "Silenciar");
+  mb.title = (off ? "Activar sonido" : "Silenciar") + " (M)";
+  mb.querySelector(".x").style.display = off ? "" : "none";
+  mb.querySelector(".w1").style.display = off ? "none" : "";
+  mb.querySelector(".w2").style.display = off || v < 50 ? "none" : "";
+  const shown = off ? 0 : v;
+  cVol.value = shown; cVol.style.setProperty("--v", shown + "%"); cVol.setAttribute("aria-valuetext", off ? "Silenciado" : shown + " %");
+  $("cPct").textContent = off ? "0%" : shown + "%";
+  const fs = !!(document.fullscreenElement || document.webkitFullscreenElement), fb = $("cFull");
+  fb.setAttribute("aria-label", fs ? "Salir de pantalla completa" : "Pantalla completa");
+  fb.title = (fs ? "Salir de pantalla completa" : "Pantalla completa") + " (F)";
+  fb.querySelector(".in").style.display = fs ? "none" : "";
+  fb.querySelector(".out").style.display = fs ? "" : "none";
+}
+function showCtrl(){
+  if(!DESKTOP) return;
+  document.body.classList.remove("idle");
+  ctrl.classList.remove("hide"); hideBanner(); syncCtrl();
+  clearTimeout(ctrlTimer);
+  ctrlTimer = setTimeout(() => {
+    if(overCtrl || ctrl.contains(document.activeElement) || cVol.classList.contains("drag")) return showCtrl();
+    ctrl.classList.add("hide"); document.body.classList.add("idle");
+  }, 3000);
+}
+function toggleMute(){
+  if(video.muted || video.volume === 0){ video.muted = false; if(video.volume === 0) video.volume = .5; video.play().catch(()=>{}); toastEl.classList.add("hide"); }
+  else video.muted = true;
+  showCtrl(); syncCtrl();
+}
+function setVol(v){
+  v = Math.max(0, Math.min(100, v));
+  video.volume = v / 100; video.muted = v === 0;
+  if(v > 0){ video.play().catch(()=>{}); toastEl.classList.add("hide"); }
+  store.set("tv:vol", String(v)); syncCtrl();
+}
+function stepVol(d){ setVol(Math.round((video.muted ? 0 : video.volume * 100) + d)); showCtrl(); }
+function toggleFull(){
+  const el = document.documentElement;
+  if(document.fullscreenElement || document.webkitFullscreenElement){
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if(req){ const p = req.call(el); if(p && p.catch) p.catch(() => toast("Este navegador no deja poner pantalla completa", 3000)); }
+  }
+  showCtrl();
+}
+const savedVol = parseInt(store.get("tv:vol") || "", 10);
+if(savedVol >= 1 && savedVol <= 100) video.volume = savedVol / 100;
+
+if(DESKTOP){
+  document.body.classList.add("desktop");
+  document.addEventListener("mousemove", showCtrl);
+  document.addEventListener("focusin", e => { if(ctrl.contains(e.target)) showCtrl(); });
+  ctrl.addEventListener("mouseenter", () => { overCtrl = true; showCtrl(); });
+  ctrl.addEventListener("mouseleave", () => { overCtrl = false; showCtrl(); });
+  $("cMenu").addEventListener("click", () => { guideOpen() ? closeGuide() : openGuide(); showCtrl(); });
+  $("cMute").addEventListener("click", toggleMute);
+  $("cFull").addEventListener("click", toggleFull);
+  cVol.addEventListener("input", () => setVol(+cVol.value));
+  cVol.addEventListener("pointerdown", () => cVol.classList.add("drag"));
+  document.addEventListener("pointerup", () => cVol.classList.remove("drag"));
+  document.addEventListener("fullscreenchange", syncCtrl);
+  document.addEventListener("webkitfullscreenchange", syncCtrl);
+  video.addEventListener("volumechange", syncCtrl);
+  video.addEventListener("click", () => { if(unmute()) syncCtrl(); showCtrl(); });
+  video.addEventListener("dblclick", toggleFull);
+  showCtrl();
+} else {
+  video.addEventListener("click", () => { if(unmute()) return; guideOpen() ? closeGuide() : openGuide(); });
+}
 list.addEventListener("wheel", armGuideTimer, {passive:true});
 list.addEventListener("scroll", armGuideTimer, {passive:true});
 
