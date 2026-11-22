@@ -149,7 +149,6 @@
    ========================================================= */
 const S7  = "https://streaming004.gestec-video.com/hls/";
 const SE7 = "https://especial7tv.gestec-video.com/hls/";
-const T101 = "https://liveingesta318.cdnmedia.tv/";
 
 const GROUPS = [
   { id:"elecciones", name:"Elecciones", cols:4, rows:4,
@@ -180,18 +179,6 @@ const GROUPS = [
       { id:"7rot", name:"7TV Rota",               url:S7+"7TVROTA.m3u8" },
       { id:"7sfe", name:"7TV San Fernando",       url:S7+"7TVSANFERNANDO.m3u8" },
       { id:"7sev", name:"7TV Sevilla",            url:SE7+"7TVSEVILLA.m3u8" },
-    ]},
-  { id:"101tv", name:"101TV", cols:4, rows:3,
-    slots:[[1,1,2,2],[3,1,1,1],[4,1,1,1],[3,2,1,1],[4,2,1,1],[1,3,1,1],[2,3,1,1],[3,3,1,1]], clock:[4,3,1,1],
-    channels:[
-      { id:"1mal",  name:"101TV Málaga",          url:T101+"101televisionlive/smil:malagaott.smil/playlist.m3u8?DVR", backup:"https://www.youtube.com/channel/UCJzt0XyxSwpsNODokzG4iRw/live" },
-      { id:"1malc", name:"101TV Málaga Cofrade",  url:T101+"101weblive/smil:CofradeMalaga.smil/playlist.m3u8" },
-      { id:"1sev",  name:"101TV Sevilla",         url:T101+"101televisionlive/smil:sevillaott.smil/playlist.m3u8", backup:"https://www.youtube.com/channel/UCfNy1pSiPIhs0LxRpVeqeRA/live" },
-      { id:"1sevc", name:"101TV Sevilla Cofrade", url:T101+"101weblive/smil:CofradeSevilla.smil/playlist.m3u8" },
-      { id:"1gra",  name:"101TV Granada",         url:T101+"101weblive/smil:granada.smil/playlist.m3u8" },
-      { id:"1ant",  name:"101TV Antequera",       url:T101+"101weblive/smil:antequera.smil/playlist.m3u8" },
-      { id:"1cad",  name:"101TV Cádiz",           url:T101+"101weblive/smil:CADIZ.smil/playlist.m3u8" },
-      { id:"1cos",  name:"101TV Costa del Sol",   url:T101+"101weblive/smil:BENALMADENA.smil/playlist.m3u8" },
     ]},
   { id:"ptv", name:"PTV", cols:4, rows:4, first:"pgra",   // Granada siempre en PGM al entrar
     slots:[[1,1,3,3],[4,1,1,1],[4,2,1,1],[4,3,1,1],[4,4,1,1]], clock:[1,4,3,1],
