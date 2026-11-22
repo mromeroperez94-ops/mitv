@@ -163,6 +163,7 @@
     padding:3.2rem var(--safe-x) 1.4rem;background:linear-gradient(transparent,rgba(4,7,12,.92) 60%);
     transition:opacity .25s,transform .25s,left .28s cubic-bezier(.2,.8,.2,1);z-index:5}
   body.desktop #ctrl{display:flex}
+  body.desktop #ghelp, body.desktop #banner .nav{display:none}   /* leyendas del mando: solo en la tele */
   #ctrl.hide{opacity:0;transform:translateY(.8rem);pointer-events:none}
   body.guide-open #ctrl{left:min(100vw,max(34vw,24rem))}
   .cbtn{height:2.6rem;min-width:2.6rem;padding:0 .9rem;border-radius:1.3rem;display:inline-flex;align-items:center;
@@ -235,7 +236,7 @@
   <button class="cbtn" id="cMenu" aria-expanded="false" aria-controls="guide" title="Canales (C)">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Canales</span>
   </button>
-  <div class="cinfo" aria-live="polite"><span class="cnum" id="cNum"></span><span class="cname" id="cName"></span><span class="live">EN VIVO</span></div>
+  <div class="cinfo" aria-live="polite"><span class="cnum" id="cNum"></span><span class="cname" id="cName"></span><span class="live">EN DIRECTO</span></div>
   <div class="cvol">
     <button class="cbtn icon" id="cMute" aria-pressed="false" aria-label="Silenciar" title="Silenciar (M)">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="w1" d="M16.5 9.5a3.5 3.5 0 0 1 0 5"/><path class="w2" d="M19 7a7 7 0 0 1 0 10"/><path class="x" d="M17 9l5 6M22 9l-5 6" style="display:none"/></svg>
@@ -367,7 +368,7 @@ function refreshRows(){
   rows.forEach((r, k) => {
     r.classList.toggle("playing", k === cur);
     r.classList.toggle("dead", dead.has(k));
-    r.querySelector(".tag").innerHTML = k === cur ? '<span class="live">EN VIVO</span>' : dead.has(k) ? "SIN SEÑAL" : "";
+    r.querySelector(".tag").innerHTML = k === cur ? '<span class="live">EN DIRECTO</span>' : dead.has(k) ? "SIN SEÑAL" : "";
   });
 }
 
@@ -394,7 +395,7 @@ function showBanner(){
   $("bNum").textContent = ch.num;
   $("bName").textContent = ch.name;
   $("bSec").innerHTML = ""; $("bSec").append(s.title + " ");
-  const lv = document.createElement("span"); lv.className = "live"; lv.textContent = "EN VIVO"; $("bSec").append(lv);
+  const lv = document.createElement("span"); lv.className = "live"; lv.textContent = "EN DIRECTO"; $("bSec").append(lv);
   $("bSec").style.setProperty("--c", s.color);
   paintLogo($("bLogo"), ch);
   banner.classList.remove("hide");
@@ -569,7 +570,7 @@ const UA = navigator.userAgent;
 const DESKTOP = matchMedia("(hover: hover) and (pointer: fine)").matches &&
   !/Android|CrKey|GoogleTV|SMART-?TV|SmartTV|AFT|BRAVIA|Tizen|Web0S|webOS|HbbTV|NetCast|Mobi|iPhone|iPad/i.test(UA);
 const ctrl = $("ctrl"), cVol = $("cVol");
-let ctrlTimer = null, overCtrl = false;
+let ctrlTimer = null, overCtrl = false, mouseY = -1;
 function ctrlVisible(){ return DESKTOP && !ctrl.classList.contains("hide"); }
 function syncCtrl(){
   document.body.classList.toggle("guide-open", guideOpen());
@@ -592,15 +593,21 @@ function syncCtrl(){
   fb.querySelector(".in").style.display = fs ? "none" : "";
   fb.querySelector(".out").style.display = fs ? "" : "none";
 }
+/* La barra se queda mientras el ratón está cerca de ella; si el ratón se para
+   en el resto de la pantalla, se oculta casi al instante. */
+function nearBar(){ return overCtrl || (mouseY >= 0 && mouseY > innerHeight - ctrl.offsetHeight - innerHeight * .08); }
+function keepCtrl(){ return overCtrl || ctrl.contains(document.activeElement) || cVol.classList.contains("drag"); }
+function hideCtrl(){
+  if(!DESKTOP || keepCtrl()) return;
+  clearTimeout(ctrlTimer);
+  ctrl.classList.add("hide"); document.body.classList.add("idle");
+}
 function showCtrl(){
   if(!DESKTOP) return;
   document.body.classList.remove("idle");
   ctrl.classList.remove("hide"); hideBanner(); syncCtrl();
   clearTimeout(ctrlTimer);
-  ctrlTimer = setTimeout(() => {
-    if(overCtrl || ctrl.contains(document.activeElement) || cVol.classList.contains("drag")) return showCtrl();
-    ctrl.classList.add("hide"); document.body.classList.add("idle");
-  }, 3000);
+  ctrlTimer = setTimeout(() => keepCtrl() ? showCtrl() : hideCtrl(), nearBar() || ctrl.contains(document.activeElement) ? 3000 : 700);
 }
 function toggleMute(){
   if(video.muted || video.volume === 0){ video.muted = false; if(video.volume === 0) video.volume = .5; video.play().catch(()=>{}); toastEl.classList.add("hide"); }
@@ -629,7 +636,8 @@ if(savedVol >= 1 && savedVol <= 100) video.volume = savedVol / 100;
 
 if(DESKTOP){
   document.body.classList.add("desktop");
-  document.addEventListener("mousemove", showCtrl);
+  document.addEventListener("mousemove", e => { mouseY = e.clientY; showCtrl(); });
+  video.addEventListener("playing", hideCtrl);   // en cuanto arranca la imagen, la barra se va
   document.addEventListener("focusin", e => { if(ctrl.contains(e.target)) showCtrl(); });
   ctrl.addEventListener("mouseenter", () => { overCtrl = true; showCtrl(); });
   ctrl.addEventListener("mouseleave", () => { overCtrl = false; showCtrl(); });
@@ -642,11 +650,18 @@ if(DESKTOP){
   document.addEventListener("fullscreenchange", syncCtrl);
   document.addEventListener("webkitfullscreenchange", syncCtrl);
   video.addEventListener("volumechange", syncCtrl);
-  video.addEventListener("click", () => { if(unmute()) syncCtrl(); showCtrl(); });
+  const clickScreen = () => {
+    if(guideOpen()){ closeGuide(); return; }        // clic en la imagen: cierra la lista al momento
+    if(unmute()) syncCtrl();
+    showCtrl();
+  };
+  video.addEventListener("click", clickScreen);
+  card.addEventListener("click", clickScreen);
   video.addEventListener("dblclick", toggleFull);
   showCtrl();
 } else {
   video.addEventListener("click", () => { if(unmute()) return; guideOpen() ? closeGuide() : openGuide(); });
+  card.addEventListener("click", () => { if(guideOpen()) closeGuide(); });
 }
 list.addEventListener("wheel", armGuideTimer, {passive:true});
 list.addEventListener("scroll", armGuideTimer, {passive:true});
